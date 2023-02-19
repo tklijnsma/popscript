@@ -6,15 +6,19 @@
 # - lists & getitem []
 # - factors & multiplication
 # - test suite
+# - shell interop
 
 # NEXT LEVEL
 # - dictionaries
-# - shell interop
+# - interpreter & .pop file ingestion
 
 # ULTIMATELY
 # - garbage collection
 # - error handling
 # - operator overloading
+# - minimize source code to single file
+# - unpacking tuples for return, for loops, ...
+# - keyword arguments
 
 
 set -e
@@ -26,6 +30,7 @@ iclass=10
 inside_class_def=0
 inside_function=0
 current_classnr=""
+same_scope_as_parent_parser=0
 
 
 _new_obj(){
@@ -198,6 +203,7 @@ read_braces_block(){
         rv+=($current_token)
         advance
     done
+    rv="${rv[@]}"
     }
 
 
@@ -227,7 +233,9 @@ parse(){
     eat_sep
     while strneq "${current_token}" "EOF" ; do
         rv="NULL"
-        if maybe_eat "CLASS" ; then
+        if maybe_eat "IF" ; then
+            if_statement
+        elif maybe_eat "CLASS" ; then
             define_class
         elif maybe_eat "DEF" ; then
             define_fn
@@ -247,8 +255,9 @@ parse(){
 
         # Do pending assignments
         if test $pending_assignment -ne 0 ; then
+            # 1 means local assignment,
+            # 2 means global: always skip "local" kw
             if test $pending_assignment -eq 1 ; then
-                # 1 means local assignment, >1 means global (i.e. skip local kw)
                 local "$leftid"
                 echo "Local assignment $leftid = $rightval"
             else
@@ -262,6 +271,67 @@ parse(){
         eat "SEP" "EOF"
         eat_sep
     done
+    }
+
+
+if_statement(){
+    echo "New if statement"
+
+    local code_to_be_executed the_boolean the_code_block
+    local looking_for_code_to_execute=1
+
+    expr ; the_boolean="$rv"
+    eat_sep
+    eat "PNC{"
+    read_braces_block ; local the_code_block="$rv"
+    eat_sep
+
+    if strneq $the_boolean "INT0" ; then
+        looking_for_code_to_execute=0
+        code_to_be_executed="$the_code_block"
+    fi
+
+    while maybe_eat "ELIF" ; do
+        
+        expr ; the_boolean="$rv"
+        eat_sep
+        eat "PNC{"
+        read_braces_block ; local the_code_block="$rv"
+        eat_sep
+
+        if test $looking_for_code_to_execute -eq 1 && strneq $the_boolean "INT0" ; then
+            looking_for_code_to_execute=0
+            code_to_be_executed="$the_code_block"
+        fi
+    done
+
+    if maybe_eat "ELSE" ; then
+        eat_sep
+        eat "PNC{"
+        read_braces_block ; local the_code_block="$rv"
+        if test $looking_for_code_to_execute -eq 1 ; then
+            looking_for_code_to_execute=0
+            code_to_be_executed="$the_code_block"
+        fi
+    fi
+
+    if test $looking_for_code_to_execute -eq 0 ; then
+        # Some code to execute was found
+        echo "Running the following code: $code_to_be_executed"
+
+        # Expand to array again (read_braces_block returns space-sep string)
+        local insert_tokens
+        read -ra insert_tokens <<< $code_to_be_executed
+
+        # Throw away processed tokens, prefix the tokens from the if_statement.
+        # current_token and next_token should not be affected.
+        # This is a very inefficient operation.
+        tokens=( "SEP" "${insert_tokens[@]}" "SEP" "SEP" "${tokens[@]:$itoken}" )
+        itoken=0
+        echo "Token stream changed to: ${tokens[@]}"
+    else
+        echo "No branch of if statement found to execute"
+    fi
     }
 
 
@@ -332,16 +402,21 @@ define_fn(){
     
     eat_sep
     eat "PNC{"
-    read_braces_block
-    local fn_code="${rv[@]}"
+    read_braces_block ; local fn_code="$rv"
 
     _new_obj ; local obj=$rv
     export "$obj"="FN"
     export "${obj}ID__tokens__"="$fn_code"
-    export "${obj}ID__name__"="${fnid:2:100}"
+    export "${obj}ID__name__"="${fnid:2}"
+
     # For some reason getting a space-separated string only works via a tmp variable 
     local tmp="${fn_args[@]}"
-    export "${obj}ID__args__"="$tmp"
+    if strempty "$tmp" ; then
+        # If no input args, still write NULL; leaving it empty should be a bug
+        export "${obj}ID__args__"="NULL"
+    else
+        export "${obj}ID__args__"="$tmp"
+    fi
 
     if test $inside_class_def -eq 1 ; then
         # This function is a method; assign it in global scope
@@ -395,6 +470,19 @@ expr_or_assignment(){
 
 expr_with_comp(){
     expr
+    if streq "${current_token:0:4}" "COMP" ; then
+        resolve_id $rv ; local left_val="$rv"
+        local comp_token="$current_token"
+        advance
+        echo "Detected comparison $comp_token"
+        expr
+        resolve_id $rv ; local right_val="$rv"
+        echo "$left_val $comp_token $right_val"
+
+        # HIER VERDER
+        # COMP== , COMP< , ... moeten nu
+        # geimplementeerd worden in posix
+    fi
     }
 
 
@@ -538,7 +626,11 @@ call(){
 
     resolve_id $fnid ; local obj="$rv"
     resolve_id "${obj}ID__args__"
-    read -ra fn_args <<< $rv
+    if streq $rv "NULL" ; then
+        fn_args=()
+    else
+        read -ra fn_args <<< $rv
+    fi
     resolve_id "${obj}ID__tokens__"; local fn_code="$rv"
 
     echo "Called function $fnid with arguments ${args[@]}"
@@ -713,6 +805,45 @@ incr(a)
 incr(b)
 print(a.a)
 print(b.a)
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "9" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = 1
+if 0 {
+    a = 2
+    }
+elif 1 {
+    a = 3
+    }
+elif 0 {
+    a = 4
+    }
+else {
+    a = 5
+    }
+print(a)
+EndOfMessage
+)
+run "$code"
+fi
+
+if test "$1" = "10" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+if 0 {def fn(){ print(4) }} else {def fn(){ print(5) }}
+fn()
+EndOfMessage
+)
+run "$code"
+fi
+
+if test "$1" = "11" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+1 == 1
 EndOfMessage
 )
 run "$code"
