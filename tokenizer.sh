@@ -1,5 +1,5 @@
 _add_current_token(){
-    local token=$1
+    local token="$1"
     # First catch empty tokens
     if [ -z "$token" ]; then
         return
@@ -22,6 +22,9 @@ _add_current_token(){
         echo "CLASS"
     elif [[ "$token" == "null" ]]; then
         echo "NULL"
+    # Check for str
+    elif test "x${token:0:3}" = "xSTR" ; then
+        echo "$token"
     # Check for int
     elif [ "$token" -eq "$token" ] 2> /dev/null ; then
         echo "INT$token"
@@ -35,13 +38,30 @@ _tokenize_line(){
     local line=$1
     local i=0
     local len=${#line}
+    local strmode=0
 
     local token=""
 
     while (($i < $len)); do
         local c="${line:$i:1}"
         local next_c="${line:$((i+1)):1}"
-        if [[ "$c" == " " ]]; then
+
+        if test $strmode = 1 ; then
+            if [[ "$c" == "\"" ]]; then
+                # Close the string
+                _add_current_token "$token" ; token=""
+                strmode=0
+            elif [[ "$c" == " " ]]; then
+                token="${token}~"
+            elif [[ "$c" == "~" ]]; then
+                token="${token}\~"
+            else
+                token="${token}$c"
+            fi
+        elif [[ "$c" == "\"" ]]; then
+            strmode=1
+            _add_current_token $token ; token="STR"
+        elif [[ "$c" == " " ]]; then
             # Hit whitespace: Add current token and reset
             _add_current_token $token ; token=""
         elif [[ "$c" == "#" ]]; then

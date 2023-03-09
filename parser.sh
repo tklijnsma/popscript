@@ -1,24 +1,33 @@
 # MINIMAL TODO LIST
-# - if statements and comparisons
+# x if statements and comparisons
 # - for & while
 # - floats
-# - strings
-# - lists & getitem []
+# x strings
+# x lists
 # - factors & multiplication
-# - test suite
+# - minimal test suite
 # - shell interop
+# - refactor call system; minimally:
+#   - __getitem__ []
+#   - __add__ +
+#   - __eq__ == (and other comps)
+#   - __repr__
 
 # NEXT LEVEL
+# - conversions to strings, especially for ints/floats
 # - dictionaries
 # - interpreter & .pop file ingestion
 
 # ULTIMATELY
+# - multiline strings
 # - garbage collection
 # - error handling
 # - operator overloading
 # - minimize source code to single file
 # - unpacking tuples for return, for loops, ...
 # - keyword arguments
+# - inheritance
+# - type(...) function
 
 
 set -e
@@ -280,7 +289,7 @@ if_statement(){
     local code_to_be_executed the_boolean the_code_block
     local looking_for_code_to_execute=1
 
-    expr ; the_boolean="$rv"
+    expr_with_comp ; the_boolean="$rv"
     eat_sep
     eat "PNC{"
     read_braces_block ; local the_code_block="$rv"
@@ -293,7 +302,7 @@ if_statement(){
 
     while maybe_eat "ELIF" ; do
         
-        expr ; the_boolean="$rv"
+        expr_with_comp ; the_boolean="$rv"
         eat_sep
         eat "PNC{"
         read_braces_block ; local the_code_block="$rv"
@@ -477,11 +486,23 @@ expr_with_comp(){
         echo "Detected comparison $comp_token"
         expr
         resolve_id $rv ; local right_val="$rv"
-        echo "$left_val $comp_token $right_val"
+        
+        local left_type="${left_val:0:3}"
+        local right_type="${right_val:0:3}"
+        local left_value="${left_val:3}"
+        local right_value="${right_val:3}"
+        local op="${comp_token:4}"
 
-        # HIER VERDER
-        # COMP== , COMP< , ... moeten nu
-        # geimplementeerd worden in posix
+        if ( streq $left_type "INT" || streq $left_type "FLT" ) && \
+            ( streq $right_type "INT" || streq $right_type "FLT" ) ; then
+            # Defer the actual comparison to bc; 1 means true, 0 means false
+            rv=$(bc <<< "$left_value $op $right_value")
+            rv="INT$rv"
+        else
+            error "TODO: string comparisons or op overloading not yet supported"
+        fi
+
+        echo "$left_val $comp_token $right_val = $rv"
     fi
     }
 
@@ -555,10 +576,24 @@ composed_id(){
             # Handle builtins
             if streq "$fnid" "IDprint" ; then
                 for arg in ${args[@]}; do
-                    resolve_id $arg
-                    echo ">>> POPOUT: $rv"
+                    resolve_id $arg ; local printstr="$rv"
+
+                    # FIXME: Normally object would be printed as e.g. "OBJ11".
+                    # This code only resolves for strings.
+                    # It would probably be better to check for the existence of a __repr__ method
+                    # for the object (or parent class).
+                    _resolve "$printstr"
+                    if streq "$rv" "STR" ; then
+                        resolve_id "${printstr}IDstr" ; printstr="$rv"
+                    fi
+
+                    echo ">>> POPOUT: $printstr"
                 done
                 rv="NULL"
+                return 0
+            elif streq "$fnid" "STRIDlength" ; then
+                resolve "${owner_obj}IDstr"
+                rv="INT${#rv}"
                 return 0
             fi
 
@@ -578,15 +613,55 @@ composed_id(){
     }
 
 id(){
-    if test "${current_token:0:2}" = "ID" || test "${current_token:0:3}" = "INT" ; then
-        export rv="$current_token"
+    if maybe_eat "PNC[" ; then
+        list
+    elif test "${current_token:0:2}" = "ID" || test "${current_token:0:3}" = "INT" ; then
+        rv="$current_token"
         echo "Found ID $current_token"
         advance
-        return 0
+    elif test "${current_token:0:3}" = "STR" ; then
+        _new_obj ; local obj=$rv
+        export "$obj"="STR"
+        local strval=$(echo "${current_token:3}" | tr "~" " ")
+        export "${obj}IDstr"="$strval"
+        echo "Init $obj=STR ${obj}IDstr=$strval"
+        advance
+    else
+        error "expected an ID but found $current_token"
     fi
-    error "expected an ID but found $current_token"
     }
 
+
+list(){
+    echo "Init list"
+    _new_obj ; local obj="$rv"
+    export "$obj"="LIST"
+    
+    local elements=()
+
+    eat_sep
+    if maybe_eat "PNC]" ; then
+        : # no op
+    else
+        while : ; do
+            eat_sep
+            expr_with_comp ; elements+=("$rv")
+            if maybe_eat "PNC," ; then
+                continue
+            elif maybe_eat "PNC]" ; then
+                break
+            else
+                error "Expected ] , but got $current_token"
+            fi
+        done
+    fi
+    export "${obj}IDelements"=$elements
+    rv=$obj
+    echo "Parsed list $obj: ${elements[@]}"
+    }
+
+
+# __________________________________________________________________________
 
 add(){
     if strempty "$1" || strempty "$2" ; then
@@ -683,168 +758,3 @@ instantiate(){
 
     rv=$obj
     }
-
-
-code=""
-
-if test "$1" = "1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-a=3+5
-b=a+2
-c=a+b
-a=a+b
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "2" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-def myfunc(a,b){
-    a = a + 2
-    return a
-    }
-b = 6
-myfunc(b,0)
-# print(b)
-# print(myfunc(myfunc(b,0),0))
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "3" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-a = 8
-if a == 4 {
-    a = 3
-    }
-elif a == 3 {
-    a = 5
-    }
-else {
-    a = 6
-    }
-print(a)
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "4" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-a = [0 , 1+3, [7]]
-print(a)
-b = a
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "5" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-def fn(a){
-    if a < 4 { return fn(a+1) }
-    else { return a }
-    }
-fn(1)
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "6" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-a = 4
-def fn(){ a = a + 1 }
-fn()
-a
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "7" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-class Animal {
-    a = 5
-    def __init__(self, b){
-        self.b = b
-        }
-
-    def printc(self){
-        print(self.c)
-        }
-    }
-cat = Animal(6)
-cat.b
-cat.c = 5
-cat.printc()
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "8" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-class A {
-    def __init__(self){
-        self.a = 1
-        }
-    }
-
-def incr(inst){
-    inst.a = inst.a + 1
-    }
-
-a = A()
-b = A()
-
-incr(a)
-incr(a)
-incr(b)
-print(a.a)
-print(b.a)
-EndOfMessage
-)
-run "$code"
-fi
-
-
-if test "$1" = "9" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-a = 1
-if 0 {
-    a = 2
-    }
-elif 1 {
-    a = 3
-    }
-elif 0 {
-    a = 4
-    }
-else {
-    a = 5
-    }
-print(a)
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "10" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-if 0 {def fn(){ print(4) }} else {def fn(){ print(5) }}
-fn()
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "11" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-1 == 1
-EndOfMessage
-)
-run "$code"
-fi
