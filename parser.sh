@@ -7,16 +7,20 @@
 # - factors & multiplication
 # - minimal test suite
 # - shell interop
-# - refactor call system; minimally:
-#   - __getitem__ []
-#   - __add__ +
+# - tokenize and handle negative ints/floats
+# x refactor call system; minimally:
+#   x __getitem__ []
+#   x __add__ +
 #   - __eq__ == (and other comps)
-#   - __repr__
+#   > __repr__ WIP!
+# x range
+# - change echo's to debug, and allow running without debug
 
 # NEXT LEVEL
 # - conversions to strings, especially for ints/floats
 # - dictionaries
 # - interpreter & .pop file ingestion
+# - much better error messages
 
 # ULTIMATELY
 # - multiline strings
@@ -189,14 +193,20 @@ not_exists(){
 
 
 is_int(){
-    input="$1"
+    local input="$1"
     return $(test "x${input:0:3}" = "xINT")
     }
 
+assert_int(){
+    local input="$1"
+    if strneq "${input:0:3}" "INT" ; then
+        error "expected INT but got $input"
+    fi
+    }
 
 read_braces_block(){
     local nopen=1
-    rv=()
+    local tokens_in_braces=()
     while : ; do
         if maybe_eat "EOF" ; then
             error "reached EOF while scanning tokens"
@@ -209,10 +219,10 @@ read_braces_block(){
                 break
             fi
         fi
-        rv+=($current_token)
+        tokens_in_braces+=($current_token)
         advance
     done
-    rv="${rv[@]}"
+    rv="${tokens_in_braces[@]}"
     }
 
 
@@ -559,51 +569,27 @@ composed_id(){
                 done
             fi
 
-            if streq "${fnid:0:3}" "OBJ" && not_exists $fnid ; then
-                # We're trying to access an object method (e.g OBJ11ID__init__),
-                # but it doesn't exist.
-                # We should elevate to the CLASS of the object, and check if that
-                # exists.
-                local old_fnid=$fnid
-                local owner_obj=${fnid%%ID*}
-                local fnname=${fnid##*ID}
-                resolve $owner_obj ; local classnr=$rv
-                fnid="${classnr}ID$fnname"
-                echo "Elevating unfound $old_fnid to $fnid and inserting $owner_obj as first arg"
-                args=($owner_obj "${args[@]}")
-            fi
-
-            # Handle builtins
-            if streq "$fnid" "IDprint" ; then
-                for arg in ${args[@]}; do
-                    resolve_id $arg ; local printstr="$rv"
-
-                    # FIXME: Normally object would be printed as e.g. "OBJ11".
-                    # This code only resolves for strings.
-                    # It would probably be better to check for the existence of a __repr__ method
-                    # for the object (or parent class).
-                    _resolve "$printstr"
-                    if streq "$rv" "STR" ; then
-                        resolve_id "${printstr}IDstr" ; printstr="$rv"
-                    fi
-
-                    echo ">>> POPOUT: $printstr"
-                done
-                rv="NULL"
-                return 0
-            elif streq "$fnid" "STRIDlength" ; then
-                resolve "${owner_obj}IDstr"
-                rv="INT${#rv}"
-                return 0
-            fi
-
-            resolve_id $fnid ; local fn_obj=$rv
-
             local tmp="${args[@]}"
-            if streq "${fn_obj:0:5}" "CLASS" ; then
-                instantiate "$fnid" "$tmp"
+            if call "$fnid" "$tmp" ; then
+                # Function call worked out - all good
+                :
             else
-                call "$fnid" "$tmp"
+                # return code >0 means function call failed
+                error "call to $fnid failed"
+            fi
+
+        elif maybe_eat "PNC[" ; then
+            # Shorthand for __getitem__
+            # Get the underlying object for current ID
+            resolve_id $rv ; local obj=$rv
+            # Solve the expression that is the index
+            expr_with_comp ; local index="$rv"
+            eat "PNC]"
+            if call "${obj}ID__getitem__" "$index" ; then
+                # All is well - no op
+                :
+            else
+                error "failed to getitem $index for $obj"
             fi
 
         else
@@ -620,15 +606,19 @@ id(){
         echo "Found ID $current_token"
         advance
     elif test "${current_token:0:3}" = "STR" ; then
-        _new_obj ; local obj=$rv
-        export "$obj"="STR"
-        local strval=$(echo "${current_token:3}" | tr "~" " ")
-        export "${obj}IDstr"="$strval"
-        echo "Init $obj=STR ${obj}IDstr=$strval"
+        newstr "$(echo "${current_token:3}" | tr "~" " ")"
         advance
     else
         error "expected an ID but found $current_token"
     fi
+    }
+
+
+newstr(){
+    _new_obj ; local obj=$rv
+    export "$obj"="STR"        
+    export "${obj}IDstr"="$1"
+    echo "New string $obj w/ ${obj}IDstr=$1"
     }
 
 
@@ -637,7 +627,9 @@ list(){
     _new_obj ; local obj="$rv"
     export "$obj"="LIST"
     
-    local elements=()
+    # Always have a default first argument "x" to prevent confusion
+    # when dealing with empty lists
+    local elements=(x)
 
     eat_sep
     if maybe_eat "PNC]" ; then
@@ -655,7 +647,8 @@ list(){
             fi
         done
     fi
-    export "${obj}IDelements"=$elements
+    local tmp="${elements[@]}"
+    export "${obj}IDelements"="$tmp"
     rv=$obj
     echo "Parsed list $obj: ${elements[@]}"
     }
@@ -679,7 +672,12 @@ add(){
         rv="INT$(($int1+$int2))"
         echo "Added $val1 + $val2 = $rv"
     else
-        error "cannot add $val1 and $val2"
+        if call "${val1}ID__add__" "$val2" ; then
+            # __add__ method succeeded
+            :
+        else
+            error "cannot add $val1 and $val2"
+        fi
     fi
     }
 
@@ -689,15 +687,66 @@ call(){
     local args arg i fn_args
     read -ra args <<< $2
 
-    if strempty $fnid ; then
-        error "found no function $fnid"
-    elif streq "$fnid" "IDprint" ; then
-        for arg in ${args[@]}; do
-            resolve_id $arg
-            echo ">>> POPOUT: $rv"
-        done
-        return 0
+    if streq "${fnid:0:3}" "OBJ" && not_exists $fnid ; then
+        # We're trying to access an object method (e.g OBJ11ID__init__),
+        # but it doesn't exist.
+        # We should elevate to the CLASS of the object, and check if that
+        # exists.
+        local old_fnid=$fnid
+        local owner_obj=${fnid%%ID*}
+        local fnname=${fnid##*ID}
+        resolve $owner_obj ; local classnr=$rv
+        fnid="${classnr}ID$fnname"
+        echo "Elevating unfound $old_fnid to $fnid and inserting $owner_obj as first arg"
+        args=($owner_obj "${args[@]}")
     fi
+
+    local argstr="${args[@]}"
+
+    # Handle builtin class methods - INT, STR, FLT, etc.
+    if streq "${fnid:0:3}" "INT" ; then
+        int_methods "$fnid" "$argstr"
+        return $?
+    elif streq "${fnid:0:3}" "STR" ; then
+        str_methods "$fnid" "$argstr"
+        return $?
+    elif streq "${fnid:0:4}" "LIST" ; then
+        list_methods "$fnid" "$argstr"
+        return $?
+    # Handle builtin functions
+    elif streq "$fnid" "IDprint" ; then
+        printfn "$2"
+        return 0
+    elif streq "$fnid" "IDrange" ; then
+        range "$2"
+        return 0
+    # elif streq "$fnid" "STRIDlength" ; then
+    #     resolve "${owner_obj}IDstr"
+    #     rv="INT${#rv}"
+    #     return 0
+    fi
+
+    # If we reach this point, the function must be user-defined,
+    # and thus must exist.
+    if not_exists $fnid ; then
+        echo "No such function: $fnid"
+        return 1
+    fi
+
+    resolve_id $fnid ; local fn_obj=$rv
+
+    if streq "${fn_obj:0:5}" "CLASS" ; then
+        instantiate "$fnid" "$argstr"
+    else
+        parse_user_defined_fn "$fnid" "$argstr"
+    fi
+
+}
+
+parse_user_defined_fn(){
+    local fnid=$1
+    local args arg i fn_args
+    read -ra args <<< $2
 
     resolve_id $fnid ; local obj="$rv"
     resolve_id "${obj}ID__args__"
@@ -708,7 +757,7 @@ call(){
     fi
     resolve_id "${obj}ID__tokens__"; local fn_code="$rv"
 
-    echo "Called function $fnid with arguments ${args[@]}"
+    echo "Called user-defined function $fnid with arguments ${args[@]}"
     echo "  function arguments: ${fn_args[@]}"
     echo "  function code body: $fn_code"
 
@@ -746,7 +795,7 @@ instantiate(){
     echo "Instantiating class $classid ($classnr) to $obj with args ${args[@]}"
 
     local init_method="${classnr}ID__init__"
-    if strnempty $init_method ; then
+    if exists $init_method ; then
         # An __init__ method is defined, use it
         # Add obj as the first argument
         args=("$obj" "${args[@]}")
@@ -757,4 +806,152 @@ instantiate(){
     fi
 
     rv=$obj
+    }
+
+
+printfn(){
+    local args arg obj
+    read -ra args <<< $1
+
+    for arg in ${args[@]}; do
+        resolve_id $arg ; local obj="$rv"
+
+        if streq "${obj:0:3}" "OBJ" ; then
+            if call "${obj}ID__repr__" ; then
+                # repr method worked, print rv
+                printstr="$rv"
+            else
+                # No repr method, print simply the obj
+                printstr="$obj"
+            fi
+        else
+            # Must be a builtin (e.g. INT), just print as is
+            printstr="$obj"
+        fi
+
+        echo ">>> POPOUT: $printstr"
+    done
+    rv="NULL"
+    return 0
+    }
+
+
+range(){
+    local args begin end step
+    read -ra args <<< $1
+    local nargs="${#args[@]}"
+
+    if test $nargs -eq 1 ; then
+        begin=0
+        end="${args[0]}"
+        step=1
+        assert_int $end ; end="${end:3}"
+    elif test $nargs -eq 2 ; then
+        begin="${args[0]}"
+        end="${args[1]}"
+        step=1
+        assert_int $end ; end="${end:3}"
+        assert_int $begin ; begin="${begin:3}"
+    elif test $nargs -eq 3 ; then
+        begin="${args[0]}"
+        end="${args[1]}"
+        step="${args[2]}"
+        assert_int $end ; end="${end:3}"
+        assert_int $begin ; begin="${begin:3}"
+        assert_int $step ; step="${step:3}"
+    else
+        error "expected 1, 2, or 3 args but got $nargs"
+    fi
+
+    local elements=(x)
+    for i in $(seq $begin $step $((end-1))) ; do
+        elements+=("INT$i")
+    done
+
+    echo "Init list in range fn"
+    _new_obj ; local obj="$rv"
+    export "$obj"="LIST"    
+    local elementstr="${elements[@]}"
+    export "${obj}IDelements"="$elementstr"
+    echo "Parsed range list $obj: ${elements[@]}"
+    rv=$obj
+    }
+
+
+# BUILTIN METHOD IMPLEMENTATIONS
+
+str_methods(){
+    local fnid=$1
+    local args
+    read -ra args <<< $2
+    local nargs="${#args[@]}"
+
+    local obj="${args[0]}"
+    resolve_id "${obj}IDstr" ; local str="$rv"
+
+    if streq "$fnid" "STRID__repr__" ; then
+        if test $nargs -ne 1 ; then
+            error "expected 1 argument"
+        fi
+        rv="$str"
+        # HIER VERDER
+        # Dit klopt niet echt... __repr__ zou toch een string object moeten returnen,
+        # En print() moet dan het str object converteren denk ik...
+    elif streq "$fnid" "STRIDlength" ; then
+        if test $nargs -ne 1 ; then
+            error "expected 1 argument"
+        fi
+        rv="INT${#str}"
+    elif streq "$fnid" "STRID__add__" ; then
+        if test $nargs -ne 2 ; then
+            error "expected 2 arguments"
+        fi
+        local rightobj="${args[1]}"
+        resolve_id "${rightobj}IDstr"
+        newstr "$str$rv"
+    else
+        echo "no such STR method: $fnid"
+        return 1
+    fi
+    }
+
+list_methods(){
+    local fnid=$1
+    local args
+    read -ra args <<< $2
+    local nargs="${#args[@]}"
+    echo "Called list method $fnid with args ${args[@]}"
+
+    local obj="${args[0]}"
+    resolve_id "${obj}IDelements"
+    local elements
+    read -ra elements <<< $rv
+    local nelements="${#elements[@]}"
+    ((nelements--)) # Subtract 1 for the dummy element
+    
+    echo "  obj=$obj elements=${elements[@]}"
+
+    if streq "$fnid" "LISTID__getitem__" ; then
+        if test $nargs -ne 2 ; then
+            error "expected 2 arguments"
+        fi
+        local index="${args[1]}"
+        if strneq "${index:0:3}" "INT" ; then
+            error "Expected integer for index but got $index"
+        fi
+        index="${index:3}"
+        if test $index -ge $nelements ; then
+            error "index $index out of range $nelements"
+        fi
+        ((index++)) # Increase by one because there is a dummy element
+        rv="${elements[$index]}"
+    elif streq "$fnid" "LISTIDlength" ; then
+        if test $nargs -ne 1 ; then
+            error "expected 1 argument"
+        fi
+        rv="INT$nelements"
+    else
+        echo "no such LIST method: $fnid"
+        return 1  
+    fi
     }

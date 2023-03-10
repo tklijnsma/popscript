@@ -73,7 +73,7 @@ code=$(cat << EndOfMessage
 a = 4
 def fn(){ a = a + 1 }
 fn()
-a
+print(a)
 EndOfMessage
 )
 run "$code"
@@ -182,8 +182,82 @@ fi
 
 if test "$1" = "13" || test -z "$1" ; then
 code=$(cat << EndOfMessage
-a=[1,3]
+a=[5,3]
+print(a[0])
+print(a[1])
+print(a.length())
+print([].length())
+# These should produce index errors:
+# print(a[2])
+# print([][0])
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "14" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+class A {
+    def __repr__(self){
+        return 3
+        }
+    }
+class B {}
+a = A()
+b = B()
 print(a)
+print(b)
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "15" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+non_existing_fn(3)
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "16" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a="begin "
+b=" end"
+c=a+b
+print(c)
+EndOfMessage
+)
+run "$code"
+fi
+
+if test "$1" = "17" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+class A {
+    def __init__(self, val){
+        self.val = val
+        }
+    def __add__(self, o){
+        return A(o.val + self.val)
+        }
+    }
+a = A(2)
+b = A(3)
+c = a+b
+print(c.val)
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "18" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a=range(5)
+print(a[2])
 EndOfMessage
 )
 run "$code"
