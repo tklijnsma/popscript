@@ -126,7 +126,7 @@ run "$code"
 fi
 
 
-if test "$1" = "9" || test -z "$1" ; then
+if test "$1" = "if1" || test -z "$1" ; then
 code=$(cat << EndOfMessage
 a = 1
 if a < 1 {
@@ -147,7 +147,7 @@ EndOfMessage
 run "$code"
 fi
 
-if test "$1" = "10" || test -z "$1" ; then
+if test "$1" = "if2" || test -z "$1" ; then
 code=$(cat << EndOfMessage
 if 0 {def fn(){ print(4) }} else {def fn(){ print(5) }}
 fn()
@@ -155,6 +155,22 @@ EndOfMessage
 )
 run "$code"
 fi
+
+if test "$1" = "if3" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a=4
+if 1 {
+    if a == 9 { b = 8 }
+    else { b = 9 }
+    }
+else { c = 2 }
+print(b)
+EndOfMessage
+)
+run "$code"
+fi
+
+
 
 if test "$1" = "11" || test -z "$1" ; then
 code=$(cat << EndOfMessage
@@ -258,6 +274,42 @@ if test "$1" = "18" || test -z "$1" ; then
 code=$(cat << EndOfMessage
 a=range(5)
 print(a[2])
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "for1" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+for a in range(3){
+    print(a)
+    }
+EndOfMessage
+)
+run "$code"
+fi
+
+if test "$1" = "for2" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+for a in range(2){
+    for b in range(2){
+        if a + b == 2 {
+            print("buzz!")
+            }
+        }
+    }
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "for3" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+for a in [5+3, 9, "hi"]{
+    print(a)
+    }
 EndOfMessage
 )
 run "$code"

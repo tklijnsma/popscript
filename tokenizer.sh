@@ -10,6 +10,8 @@ _add_current_token(){
         echo "RET"
     elif [[ "$token" == "for" ]]; then
         echo "FOR"
+    elif [[ "$token" == "in" ]]; then
+        echo "IN"
     elif [[ "$token" == "while" ]]; then
         echo "WHL"
     elif [[ "$token" == "if" ]]; then

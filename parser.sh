@@ -1,26 +1,29 @@
 # MINIMAL TODO LIST
-# x if statements and comparisons
-# - for & while
+# - while
 # - floats
-# x strings
-# x lists
-# - factors & multiplication
-# - minimal test suite
-# - shell interop
-# - tokenize and handle negative ints/floats
-# x refactor call system; minimally:
+# - factors & multiplication/division
+# - negative ints/floats (also in tokenizer)
+# > refactor call system; minimally:
 #   x __getitem__ []
 #   x __add__ +
 #   - __eq__ == (and other comps)
 #   > __repr__ WIP!
-# x range
 # - change echo's to debug, and allow running without debug
+# - minimal test suite
+# x if statements and comparisons
+# x for
+# x strings
+# x lists
+# - shell interop
+# x range
 
 # NEXT LEVEL
+# - basic benchmarking
 # - conversions to strings, especially for ints/floats
 # - dictionaries
 # - interpreter & .pop file ingestion
 # - much better error messages
+# - delete keyword
 
 # ULTIMATELY
 # - multiline strings
@@ -34,7 +37,7 @@
 # - type(...) function
 
 
-set -e
+# set -e
 source tokenizer.sh
 
 rv=""
@@ -84,8 +87,49 @@ advance(){
     if strempty "$current_token" ; then current_token="EOF" ; fi
     if strempty "$next_token" ; then next_token="EOF" ; fi
     # echo "Advanced to itoken=$itoken current_token=${current_token}"
+    if streq "$current_token" "EOF" && test ${#token_stack[@]} -gt 0 ; then
+        # Current token stream exhausted but there is something on the stack
+        pop_tokens
+    fi
     }
 
+
+push_tokens(){
+    # Push the current set of tokens and the location of the current token to the stack
+    token_str="SEP ${tokens[@]}" # Insert a SEP because the main interpreter loop wants to eat a SEP
+    token_stack+=( "$token_str" )
+    token_pickup_stack+=( $((itoken+1)) ) # Add 1 because of the inserted SEP
+    # Overwrite the current token stream and reset
+    local overwrite_token_str="SEP $1 SEP"
+    read -ra tokens <<< $overwrite_token_str
+    echo "Pushed to stack"
+    echo "  token_stack=${token_stack[@]}"
+    echo "  len token_stack=${#token_stack[@]}"
+    echo "  token_pickup_stack=${token_pickup_stack[@]}"
+    echo "  tokens=${tokens[@]} (starting at 0)"
+    itoken="-1" ; advance
+    }
+
+
+pop_tokens(){
+    local last="${#token_stack[@]}"
+    ((last--))
+    echo "Picking up previous stream; last=$last"
+    # Get the tokens on top of the stack, and read them back into the current token stream
+    tokens="${token_stack[$last]}"
+    read -ra tokens <<< $tokens
+    echo "  set current token stream to ${tokens[@]}"
+    # Delete the last element of the token stack
+    unset "token_stack[$last]"
+    # Pop the index from which the current stream is supposed to be picked up
+    itoken="${token_pickup_stack[$last]}"
+    echo "  set itoken to $itoken"
+    unset "token_pickup_stack[$last]"
+    # Reset
+    ((itoken--))
+    advance
+    echo "  itoken=$itoken current_token=$current_token next_token=$next_token"
+    }
 
 eat(){
     local token
@@ -111,6 +155,12 @@ maybe_eat(){
 
 eat_sep(){
     while streq "$current_token" "SEP" ; do
+        advance
+    done
+    }
+
+eat_superfluous_sep(){
+    while streq "$current_token" "SEP" && streq "$next_token" "SEP" ; do
         advance
     done
     }
@@ -242,7 +292,17 @@ run(){
 
 parse(){
     local current_token next_token tokens
+    local token_stack=()
+    local token_pickup_stack=()
     local pending_assignment=0 leftid rightval
+
+    # The for-loop needs 3 pieces of information:
+    # - the iterable (list) of items;
+    # - the location of where it's at in the list now
+    # - the ID of where it should put the next item
+    local for_loop_iterable_stack=()
+    local for_loop_index_stack=()
+    local for_loop_iterid_stack=()
 
     read -ra tokens <<< $1
     echo "Parsing the following tokens: ${tokens[@]}"
@@ -254,6 +314,10 @@ parse(){
         rv="NULL"
         if maybe_eat "IF" ; then
             if_statement
+        elif maybe_eat "FOR" ; then
+            for_statement
+        elif maybe_eat "LOOPFOR" ; then
+            loopfor
         elif maybe_eat "CLASS" ; then
             define_class
         elif maybe_eat "DEF" ; then
@@ -293,6 +357,81 @@ parse(){
     }
 
 
+for_statement(){
+    echo "New for statement"
+
+    eat_sep
+    local iterid="$current_token"
+    if strneq "${iterid:0:2}" "ID" ; then
+        error "Expected ID but got $iterid"
+    fi
+    local "$iterid"
+    advance
+
+    eat_sep
+    eat "IN"
+    eat_sep
+
+    expr_with_comp ; local iterable="$rv"
+    eat_sep
+    eat "PNC{"
+    read_braces_block ; local for_body_code="SEP $rv SEP LOOPFOR SEP"
+
+    call "${iterable}ID__getitem__" "INT0"
+    local code="$?"
+    if test $code -eq 1 ; then
+        # No function __getitem__ defined
+        error "not an iterable: $iterable"
+    elif test $code -eq 21 ; then
+        # IndexError: iterator is empty, don't start the loop
+        :
+    elif test $code -eq 0 ; then
+        # Successfully called the first item, so start the for loop
+        pending_assignment=1
+        leftid="$iterid"
+        rightval="$rv"
+
+        push_tokens "$for_body_code"
+        for_loop_iterable_stack+=("$iterable")
+        for_loop_index_stack+=(0)
+        for_loop_iterid_stack+=("$iterid")
+    else
+        error "__getitem__ on $iterable failed: $code"
+    fi
+    }
+
+loopfor(){
+    echo "In loopfor"
+    local last=${#for_loop_index_stack[@]}
+    ((last--))
+    local iterable="${for_loop_iterable_stack[$last]}"
+    local i="${for_loop_index_stack[$last]}"
+    local iterid="${for_loop_iterid_stack[$last]}"
+    ((i++))
+    for_loop_index_stack[$last]=$i
+
+    call "${iterable}ID__getitem__" "INT$i"
+    local code="$?"
+    echo "  __getitem__ call has status code $code"
+    if test $code -eq 0 ; then
+        # Next item well received; revert to beginning of the for loop
+        pending_assignment=1
+        leftid="$iterid"
+        rightval="$rv"
+        itoken=0
+        echo "  next item $i, set itoken to $itoken"
+    elif test $code -eq 21 ; then
+        # IndexError: Must have reached end of iterable
+        echo "  reached end at $i, exiting for-loop"
+        unset "for_loop_iterable_stack[$last]"
+        unset "for_loop_index_stack[$last]"
+        unset "for_loop_iterid_stack[$last]"
+    else
+        error "failed __getitem__ for $iterable"
+    fi
+    }
+
+
 if_statement(){
     echo "New if statement"
 
@@ -303,20 +442,22 @@ if_statement(){
     eat_sep
     eat "PNC{"
     read_braces_block ; local the_code_block="$rv"
-    eat_sep
+    eat_superfluous_sep
 
     if strneq $the_boolean "INT0" ; then
         looking_for_code_to_execute=0
         code_to_be_executed="$the_code_block"
     fi
 
-    while maybe_eat "ELIF" ; do
-        
+    while streq "$current_token" "ELIF" || ( streq "$current_token" "SEP" && streq "$next_token" "ELIF" )
+    do    
+        eat_sep
+        eat "ELIF"
         expr_with_comp ; the_boolean="$rv"
         eat_sep
         eat "PNC{"
         read_braces_block ; local the_code_block="$rv"
-        eat_sep
+        eat_superfluous_sep
 
         if test $looking_for_code_to_execute -eq 1 && strneq $the_boolean "INT0" ; then
             looking_for_code_to_execute=0
@@ -324,7 +465,10 @@ if_statement(){
         fi
     done
 
-    if maybe_eat "ELSE" ; then
+    if streq "$current_token" "ELSE" || ( streq "$current_token" "SEP" && streq "$next_token" "ELSE" )
+    then
+        eat_sep
+        eat "ELSE"
         eat_sep
         eat "PNC{"
         read_braces_block ; local the_code_block="$rv"
@@ -337,17 +481,7 @@ if_statement(){
     if test $looking_for_code_to_execute -eq 0 ; then
         # Some code to execute was found
         echo "Running the following code: $code_to_be_executed"
-
-        # Expand to array again (read_braces_block returns space-sep string)
-        local insert_tokens
-        read -ra insert_tokens <<< $code_to_be_executed
-
-        # Throw away processed tokens, prefix the tokens from the if_statement.
-        # current_token and next_token should not be affected.
-        # This is a very inefficient operation.
-        tokens=( "SEP" "${insert_tokens[@]}" "SEP" "SEP" "${tokens[@]:$itoken}" )
-        itoken=0
-        echo "Token stream changed to: ${tokens[@]}"
+        push_tokens "$code_to_be_executed"
     else
         echo "No branch of if statement found to execute"
     fi
@@ -941,7 +1075,9 @@ list_methods(){
         fi
         index="${index:3}"
         if test $index -ge $nelements ; then
-            error "index $index out of range $nelements"
+            # error "index $index out of range $nelements"
+            echo "  index=$index not in range (0-$nelements); return 21 (IndexError)"
+            return 21 # indexerror
         fi
         ((index++)) # Increase by one because there is a dummy element
         rv="${elements[$index]}"
