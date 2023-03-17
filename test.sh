@@ -387,3 +387,23 @@ EndOfMessage
 run "$code"
 fi
 
+
+if test "$1" = "tokenize1" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = -1 - 4
+EndOfMessage
+)
+echo "$code" | tokenize
+fi
+
+
+if test "$1" = "negint1" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = -1 + 4
+print(a)
+b = -1 + -4
+print(b)
+EndOfMessage
+)
+run "$code"
+fi

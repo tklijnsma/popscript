@@ -1,15 +1,15 @@
 # MINIMAL TODO LIST
-# - floats
-# - factors & multiplication/division
-# - negative ints/floats (also in tokenizer)
+# - floats (incl negative)
+# - factors, subtraction, and multiplication/division
+# - change echo's to debug, and allow running without debug
+# - minimal test suite
+# - shell interop
 # > refactor call system; minimally:
 #   x __getitem__ []
 #   x __add__ +
 #   - __eq__ == (and other comps)
 #   > __repr__ WIP!
-# - change echo's to debug, and allow running without debug
-# - minimal test suite
-# - shell interop
+# x negative ints (also in tokenizer)
 # x while
 # x continue
 # x break
@@ -22,6 +22,7 @@
 # NEXT LEVEL
 # - and/or
 # - booleans
+# - single quote strings
 # - basic benchmarking
 # - conversions to strings, especially for ints/floats
 # - dictionaries

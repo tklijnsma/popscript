@@ -103,7 +103,13 @@ _tokenize_line(){
             else
                 echo "PNC="
             fi
-        elif [[ ",][]}{)(+-.*/" == *"$c"* ]]; then
+        elif [[ "$c" == "-" ]]; then
+            _add_current_token $token ; token=""
+            case $next_c in
+                *[0-9]*) token="-" ;; # If next char is a digit, this minus sign is for a neg int
+                *) echo "PNC-" ;;
+            esac
+        elif [[ ",][]}{)(+.*/" == *"$c"* ]]; then
             # Hit punctuation: Add current token, yield punctuation, and reset
             _add_current_token $token ; token=""
             echo "PNC$c"
