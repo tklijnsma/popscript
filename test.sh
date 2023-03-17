@@ -314,3 +314,76 @@ EndOfMessage
 )
 run "$code"
 fi
+
+
+if test "$1" = "for4" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+for a in range(4){
+    if a < 2 { continue }
+    print(a)
+    }
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "while1" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = 0
+while a < 10 {
+    print(a)
+    a = a + 1
+    }
+EndOfMessage
+)
+run "$code"
+fi
+
+if test "$1" = "while2" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = 0
+while a < 10 {
+    while a < 5 {
+        a = a + 1
+        }
+    print(a)
+    a = a + 1
+    }
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "while3" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = 0
+while a < 5 {
+    a = a + 1
+    if a < 3 { continue }
+    print(a)
+    }
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "forwhile1" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = 0
+while a < 10 {
+    if a == 4 { break }
+    for i in range(a) {
+        print(i)
+        }
+    a = a + 1
+    }
+print("finished")
+# 0 0 1 0 1 2
+EndOfMessage
+)
+run "$code"
+fi
+

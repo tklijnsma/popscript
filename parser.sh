@@ -1,5 +1,4 @@
 # MINIMAL TODO LIST
-# - while
 # - floats
 # - factors & multiplication/division
 # - negative ints/floats (also in tokenizer)
@@ -10,14 +9,19 @@
 #   > __repr__ WIP!
 # - change echo's to debug, and allow running without debug
 # - minimal test suite
+# - shell interop
+# x while
+# x continue
+# x break
 # x if statements and comparisons
 # x for
 # x strings
 # x lists
-# - shell interop
 # x range
 
 # NEXT LEVEL
+# - and/or
+# - booleans
 # - basic benchmarking
 # - conversions to strings, especially for ints/floats
 # - dictionaries
@@ -98,9 +102,10 @@ push_tokens(){
     # Push the current set of tokens and the location of the current token to the stack
     token_str="SEP ${tokens[@]}" # Insert a SEP because the main interpreter loop wants to eat a SEP
     token_stack+=( "$token_str" )
+    token_type_stack+=("$1")
     token_pickup_stack+=( $((itoken+1)) ) # Add 1 because of the inserted SEP
     # Overwrite the current token stream and reset
-    local overwrite_token_str="SEP $1 SEP"
+    local overwrite_token_str="SEP $2 SEP"
     read -ra tokens <<< $overwrite_token_str
     echo "Pushed to stack"
     echo "  token_stack=${token_stack[@]}"
@@ -112,8 +117,7 @@ push_tokens(){
 
 
 pop_tokens(){
-    local last="${#token_stack[@]}"
-    ((last--))
+    local last="${#token_stack[@]}" ; ((last--))
     echo "Picking up previous stream; last=$last"
     # Get the tokens on top of the stack, and read them back into the current token stream
     tokens="${token_stack[$last]}"
@@ -125,6 +129,7 @@ pop_tokens(){
     itoken="${token_pickup_stack[$last]}"
     echo "  set itoken to $itoken"
     unset "token_pickup_stack[$last]"
+    unset "token_type_stack[$last]"
     # Reset
     ((itoken--))
     advance
@@ -294,7 +299,16 @@ parse(){
     local current_token next_token tokens
     local token_stack=()
     local token_pickup_stack=()
+    local token_type_stack=()
     local pending_assignment=0 leftid rightval
+
+    # If we encounter a continue or break, we need to know
+    # whether we're in a for or a while loop
+    local loop_stack=()
+
+    # For the while-loop, we only need to know the conditional
+    # (in order to reevaluate it)
+    local while_loop_conditional_stack=()
 
     # The for-loop needs 3 pieces of information:
     # - the iterable (list) of items;
@@ -318,6 +332,14 @@ parse(){
             for_statement
         elif maybe_eat "LOOPFOR" ; then
             loopfor
+        elif maybe_eat "WHILE" ; then
+            while_statement
+        elif maybe_eat "LOOPWHILE" ; then
+            loopwhile
+        elif maybe_eat "CONTINUE" ; then
+            continue_loop
+        elif maybe_eat "BREAK" ; then
+            break_loop
         elif maybe_eat "CLASS" ; then
             define_class
         elif maybe_eat "DEF" ; then
@@ -357,6 +379,58 @@ parse(){
     }
 
 
+continue_loop(){
+    echo "Hit continue"
+    # Pop out of any if's
+    echo "  token_type_stack=${token_type_stack[@]}"
+    local peek=${token_type_stack[${#token_type_stack[@]}-1]}
+    while streq $peek  "if" ; do
+        echo "  in if-subscope, popping out"
+        pop_tokens
+        peek=${token_type_stack[${#token_type_stack[@]}-1]}
+    done
+    # Loop
+    local peek=${loop_stack[${#loop_stack[@]}-1]}
+    if streq "$peek" "for" ; then
+        loopfor
+    elif streq "$peek" "while" ; then
+        loopwhile
+    else
+        error "encountered continue outside of a loop"
+    fi
+    }
+
+
+break_loop(){
+    echo "Hit break"
+    # Pop out of any if's
+    echo "  token_type_stack=${token_type_stack[@]}"
+    local peek=${token_type_stack[${#token_type_stack[@]}-1]}
+    while streq $peek  "if" ; do
+        echo "  in if-subscope, popping out"
+        pop_tokens
+        peek=${token_type_stack[${#token_type_stack[@]}-1]}
+    done
+    # Break out of actual loop
+    local peek=${loop_stack[${#loop_stack[@]}-1]}
+    if streq "$peek" "for" ; then
+        local last=${#for_loop_iterable_stack[@]} ; ((last--))
+        unset "for_loop_iterable_stack[$last]"
+        unset "for_loop_index_stack[$last]"
+        unset "for_loop_iterid_stack[$last]"
+        local last=${#loop_stack[@]} ; ((last--))
+        unset "loop_stack[$last]"
+        pop_tokens
+    elif streq "$peek" "while" ; then
+        local last=${#while_loop_conditional_stack[@]} ; ((last--))
+        unset "while_loop_conditional_stack[$last]"
+        pop_tokens
+    else
+        error "encountered break outside of a loop"
+    fi
+    }
+
+
 for_statement(){
     echo "New for statement"
 
@@ -391,7 +465,8 @@ for_statement(){
         leftid="$iterid"
         rightval="$rv"
 
-        push_tokens "$for_body_code"
+        push_tokens "for" "$for_body_code"
+        loop_stack+=("for")
         for_loop_iterable_stack+=("$iterable")
         for_loop_index_stack+=(0)
         for_loop_iterid_stack+=("$iterid")
@@ -400,10 +475,16 @@ for_statement(){
     fi
     }
 
+
 loopfor(){
-    echo "In loopfor"
-    local last=${#for_loop_index_stack[@]}
-    ((last--))
+    echo "In loopfor; loop_stack=${loop_stack[@]}"
+    # Check if we're actually in a for loop
+    local last=${#loop_stack[@]} ; ((last--))
+    if test $last -eq -1 || strneq "${loop_stack[$last]}" "for" ; then
+        error "in loopfor but active loop is not for"
+    fi
+    # Get all the specifics of this for-loop from the stacks
+    local last=${#for_loop_index_stack[@]} ; ((last--))
     local iterable="${for_loop_iterable_stack[$last]}"
     local i="${for_loop_index_stack[$last]}"
     local iterid="${for_loop_iterid_stack[$last]}"
@@ -426,8 +507,62 @@ loopfor(){
         unset "for_loop_iterable_stack[$last]"
         unset "for_loop_index_stack[$last]"
         unset "for_loop_iterid_stack[$last]"
+        local last=${#loop_stack[@]} ; ((last--))
+        unset "loop_stack[$last]"
     else
         error "failed __getitem__ for $iterable"
+    fi
+    }
+
+
+while_statement(){
+    echo "New while statement"
+    eat_sep
+
+
+    local itoken_before_conditional=$itoken
+    expr_with_comp ; the_boolean="$rv"
+    local itoken_after_conditional=$itoken
+
+    eat_sep
+    eat "PNC{"
+    read_braces_block ; local the_code_block="$rv"
+    
+    if strneq $the_boolean "INT0" ; then
+        # Start the while loop
+        # Collect all the tokens that made up the conditional:
+        local n=$(($itoken_after_conditional-$itoken_before_conditional))
+
+        local tokens_for_conditional="${tokens[@]:$itoken_before_conditional:$n}"
+        echo "  using the following tokens as the conditional: ${tokens_for_conditional[@]}"
+        while_loop_conditional_stack+=("${tokens_for_conditional[@]}")
+
+        push_tokens "while" "$the_code_block SEP LOOPWHILE SEP"
+        loop_stack+=("while")
+    fi
+    }
+
+
+loopwhile(){
+    local last=${#loop_stack[@]} ; ((last--))
+    if test $last -eq -1 || strneq "${loop_stack[$last]}" "while" ; then
+        error "in loopwhile but active loop is not while"
+    fi
+
+    local last=${#while_loop_conditional_stack[@]} ; ((last--))
+    local conditional="${while_loop_conditional_stack[$last]}"
+
+    parse "$conditional" ; the_boolean="$rv"
+    echo "outcome of conditional: $the_boolean"
+
+    if strneq $the_boolean "INT0" ; then
+        echo "loopwhile: going back to itoken=0"
+        itoken=-1
+        advance
+        echo "$itoken $current_token $next_token ---- ${tokens[@]}"
+    else
+        echo "loopwhile: exiting loop"
+        unset "while_loop_conditional_stack[$last]"
     fi
     }
 
@@ -481,7 +616,7 @@ if_statement(){
     if test $looking_for_code_to_execute -eq 0 ; then
         # Some code to execute was found
         echo "Running the following code: $code_to_be_executed"
-        push_tokens "$code_to_be_executed"
+        push_tokens "if" "$code_to_be_executed"
     else
         echo "No branch of if statement found to execute"
     fi
@@ -874,8 +1009,8 @@ call(){
     else
         parse_user_defined_fn "$fnid" "$argstr"
     fi
+    }
 
-}
 
 parse_user_defined_fn(){
     local fnid=$1
@@ -977,19 +1112,19 @@ range(){
 
     if test $nargs -eq 1 ; then
         begin=0
-        end="${args[0]}"
+        resolve_id "${args[0]}" ; end="$rv"
         step=1
         assert_int $end ; end="${end:3}"
     elif test $nargs -eq 2 ; then
-        begin="${args[0]}"
-        end="${args[1]}"
+        resolve_id "${args[0]}" ; begin="$rv"
+        resolve_id "${args[1]}" ; end="$rv"
         step=1
         assert_int $end ; end="${end:3}"
         assert_int $begin ; begin="${begin:3}"
     elif test $nargs -eq 3 ; then
-        begin="${args[0]}"
-        end="${args[1]}"
-        step="${args[2]}"
+        resolve_id "${args[0]}" ; begin="$rv"
+        resolve_id "${args[1]}" ; end="$rv"
+        resolve_id "${args[2]}" ; step="$rv"
         assert_int $end ; end="${end:3}"
         assert_int $begin ; begin="${begin:3}"
         assert_int $step ; step="${step:3}"

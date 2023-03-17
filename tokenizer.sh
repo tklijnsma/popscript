@@ -13,7 +13,7 @@ _add_current_token(){
     elif [[ "$token" == "in" ]]; then
         echo "IN"
     elif [[ "$token" == "while" ]]; then
-        echo "WHL"
+        echo "WHILE"
     elif [[ "$token" == "if" ]]; then
         echo "IF"
     elif [[ "$token" == "elif" ]]; then
@@ -22,6 +22,10 @@ _add_current_token(){
         echo "ELSE"
     elif [[ "$token" == "class" ]]; then
         echo "CLASS"
+    elif [[ "$token" == "continue" ]]; then
+        echo "CONTINUE"
+    elif [[ "$token" == "break" ]]; then
+        echo "BREAK"
     elif [[ "$token" == "null" ]]; then
         echo "NULL"
     # Check for str
