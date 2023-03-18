@@ -1,14 +1,14 @@
 # MINIMAL TODO LIST
-# - floats (incl negative)
 # - factors, subtraction, and multiplication/division
 # - change echo's to debug, and allow running without debug
 # - minimal test suite
 # - shell interop
 # - make __repr__ logically consistent
-# - __eq__ (needed for str comp)
+# x floats (incl negative)
+# x unary minus
+# x __eq__ (needed for str comp)
 # x __getitem__ []
 # x __add__ +
-# x negative ints (also in tokenizer)
 # x while
 # x continue
 # x break
@@ -19,13 +19,13 @@
 # x range
 
 # NEXT LEVEL
+# - more string methods (__eq__, __getitem__, split, join, replace)
 # - __le__, __ge__, __lt__, __gt__
 # - and/or
 # - booleans
 # - single quote strings
 # - basic benchmarking
 # - += and the like
-# - more string methods (split, join, replace)
 # - conversions to strings, especially for ints/floats
 # - dictionaries
 # - interpreter & .pop file ingestion
@@ -33,6 +33,7 @@
 # - delete keyword
 
 # ULTIMATELY
+# - modulo, //, binary ops?
 # - multiline strings
 # - garbage collection
 # - error handling
@@ -253,6 +254,16 @@ not_exists(){
 is_int(){
     local input="$1"
     return $(test "x${input:0:3}" = "xINT")
+    }
+
+is_int_or_float(){
+    local input="$1"
+    return $( test "x${input:0:3}" = "xINT" || test "x${input:0:3}" = "xFLT" )
+    }
+
+is_obj(){
+    local input="$1"
+    return $(test "x${input:0:3}" = "xOBJ")
     }
 
 assert_int(){
@@ -775,11 +786,26 @@ expr_with_comp(){
         local right_value="${right_val:3}"
         local op="${comp_token:4}"
 
-        if ( streq $left_type "INT" || streq $left_type "FLT" ) && \
-            ( streq $right_type "INT" || streq $right_type "FLT" ) ; then
+        if is_int_or_float $left_val && is_int_or_float $right_val ; then
             # Defer the actual comparison to bc; 1 means true, 0 means false
             rv=$(bc <<< "$left_value $op $right_value")
             rv="INT$rv"
+        elif is_obj $left_val ; then
+            local op_dunder
+            case $op in
+                '<=') op_dunder="__le__" ;;
+                '>=') op_dunder="__ge__" ;;
+                '<') op_dunder="__lt__" ;;
+                '>') op_dunder="__gt__" ;;
+                '==') op_dunder="__eq__" ;;
+                '!=') op_dunder="__ne__" ;;
+                *) error "not a valid op $op" ;;
+            esac
+            if call "${left_val}ID${op_dunder}" "$right_val" ; then
+                : # succeeded
+            else
+                error "Function call ${left_val}ID${op_dunder} $right_val failed"
+            fi
         else
             error "TODO: string comparisons or op overloading not yet supported"
         fi
@@ -802,6 +828,12 @@ expr(){
 
 
 composed_id(){
+    local negate=0
+    if maybe_eat "PNC-" ; then
+        # Unary minus
+        negate=1
+    fi
+
     id
 
     while : ; do
@@ -868,12 +900,20 @@ composed_id(){
             break
         fi
     done
+
+    # Apply unary minus if necessary
+    if test $negate -eq 1 ; then
+        echo "Applying unary minus on $rv"
+        unary_minus "$rv"
+        echo "  after unary minus: $rv"
+    fi
     }
+
 
 id(){
     if maybe_eat "PNC[" ; then
         list
-    elif test "${current_token:0:2}" = "ID" || test "${current_token:0:3}" = "INT" ; then
+    elif test "${current_token:0:2}" = "ID" || is_int_or_float "$current_token" ; then
         rv="$current_token"
         echo "Found ID $current_token"
         advance
@@ -928,6 +968,21 @@ list(){
 
 # __________________________________________________________________________
 
+unary_minus(){
+    resolve_id "$1" ; local val="$rv"
+    if is_int_or_float "$val" ; then
+        rv="${val:0:3}-${val:3}"
+    elif is_obj "$val" ; then
+        if call "${val}ID__neg__" ; then
+            : # Succeeded
+        else
+            error "call __neg__ for $val failed"
+        fi
+    else
+        error "cannot negate $val"
+    fi
+    }
+
 add(){
     if strempty "$1" || strempty "$2" ; then
         error "empty string in addition"
@@ -939,10 +994,15 @@ add(){
     local val2="$rv"
 
     if is_int $val1 && is_int $val2 ; then
-        int1="${val1:3:100}"
-        int2="${val2:3:100}"
+        int1="${val1:3}"
+        int2="${val2:3}"
         rv="INT$(($int1+$int2))"
         echo "Added $val1 + $val2 = $rv"
+    elif is_int_or_float $val1 && is_int_or_float $val2 ; then
+        val1="${val1:3}"
+        val2="${val2:3}"
+        rv=$( bc <<< "$val1+$val2" )
+        rv="FLT$rv"
     else
         if call "${val1}ID__add__" "$val2" ; then
             # __add__ method succeeded

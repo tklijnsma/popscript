@@ -31,6 +31,9 @@ _add_current_token(){
     # Check for str
     elif test "x${token:0:3}" = "xSTR" ; then
         echo "$token"
+    # Check for float
+    elif test "x${token:0:3}" = "xFLT" ; then
+        echo "$token"
     # Check for int
     elif [ "$token" -eq "$token" ] 2> /dev/null ; then
         echo "INT$token"
@@ -103,13 +106,24 @@ _tokenize_line(){
             else
                 echo "PNC="
             fi
-        elif [[ "$c" == "-" ]]; then
-            _add_current_token $token ; token=""
-            case $next_c in
-                *[0-9]*) token="-" ;; # If next char is a digit, this minus sign is for a neg int
-                *) echo "PNC-" ;;
+        elif [[ "$c" == "." ]]; then
+            case $token in
+                *[!0-9]*) _add_current_token $token ; token="" ; echo "PNC." ;;
+                '')
+                    case $next_c in
+                        *[0-9]*) token="FLT0." ;; # If next char is a digit, this dot is for a float
+                        *) echo "PNC." ;;
+                    esac
+                    ;;
+                *) token="FLT$token." ;;
             esac
-        elif [[ ",][}{)(+.*/" == *"$c"* ]]; then
+        # elif [[ "$c" == "-" ]]; then
+        #     _add_current_token $token ; token=""
+        #     case $next_c in
+        #         *[0-9]*) token="-" ;; # If next char is a digit, this minus sign is for a neg int
+        #         *) echo "PNC-" ;;
+        #     esac
+        elif [[ "-,][}{)(+.*/" == *"$c"* ]]; then
             # Hit punctuation: Add current token, yield punctuation, and reset
             _add_current_token $token ; token=""
             echo "PNC$c"

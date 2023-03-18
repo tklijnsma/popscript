@@ -407,3 +407,81 @@ EndOfMessage
 )
 run "$code"
 fi
+
+
+if test "$1" = "tokenize_floats" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = 0.4 + 5 ;;
+a = .4 + 5 ;;
+a = 3. + 5 ;;
+a = . + ;;
+a3.method() ;;
+EndOfMessage
+)
+echo "$code" | tokenize
+fi
+
+if test "$1" = "tokenize_negfloats" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = -0.4 + 5 ;;
+a = -.4 + 5 ;;
+a = -3. + 5 ;;
+a = . + ;;
+a3.method() ;;
+EndOfMessage
+)
+echo "$code" | tokenize
+fi
+
+if test "$1" = "negint1" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = -1 + 4
+print(a)
+b = -1 + -4
+print(b)
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "floats1" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+a = .1
+b = 4.5
+print(a+b)
+a = -.1
+b = -5.5
+print(a+b)
+a = -.1
+b = 5
+print(a+b)
+print(0.1 < 0.3)
+print(0.3 > 0.3)
+EndOfMessage
+)
+run "$code"
+fi
+
+
+if test "$1" = "overloaded_comps" || test -z "$1" ; then
+code=$(cat << EndOfMessage
+class A {
+    def __lt__(self, o){return 1}
+    def __gt__(self, o){return 2}
+    def __le__(self, o){return 3}
+    def __ge__(self, o){return 4}
+    def __eq__(self, o){return 5}
+    def __ne__(self, o){return 6}
+    }
+a = A()
+print(a<3)
+print(a>3)
+print(a<=3)
+print(a>=3)
+print(a==3)
+print(a!=3)
+EndOfMessage
+)
+run "$code"
+fi
