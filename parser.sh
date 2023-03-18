@@ -4,11 +4,10 @@
 # - change echo's to debug, and allow running without debug
 # - minimal test suite
 # - shell interop
-# > refactor call system; minimally:
-#   x __getitem__ []
-#   x __add__ +
-#   - __eq__ == (and other comps)
-#   > __repr__ WIP!
+# - make __repr__ logically consistent
+# - __eq__ (needed for str comp)
+# x __getitem__ []
+# x __add__ +
 # x negative ints (also in tokenizer)
 # x while
 # x continue
@@ -20,10 +19,13 @@
 # x range
 
 # NEXT LEVEL
+# - __le__, __ge__, __lt__, __gt__
 # - and/or
 # - booleans
 # - single quote strings
 # - basic benchmarking
+# - += and the like
+# - more string methods (split, join, replace)
 # - conversions to strings, especially for ints/floats
 # - dictionaries
 # - interpreter & .pop file ingestion
@@ -34,7 +36,7 @@
 # - multiline strings
 # - garbage collection
 # - error handling
-# - operator overloading
+# - array slicing
 # - minimize source code to single file
 # - unpacking tuples for return, for loops, ...
 # - keyword arguments
