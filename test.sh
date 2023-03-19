@@ -1,35 +1,49 @@
 source parser.sh
 
-code=""
 
-if test "$1" = "1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+basic=$(cat << EndOfMessage
 a=3+5
+print(a)
 b=a+2
+print(b)
 c=a+b
+print(c)
 a=a+b
+print(a)
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "2" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+func1=$(cat << EndOfMessage
 def myfunc(a,b){
     a = a + 2
     return a
     }
 b = 6
 myfunc(b,0)
-# print(b)
-# print(myfunc(myfunc(b,0),0))
+print(b)
+print(myfunc(myfunc(b,0),0))
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "3" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+func2=$(cat << EndOfMessage
+def fn(a){
+    if a < 4 { return fn(a+1) }
+    else { return a }
+    }
+print(fn(1))
+EndOfMessage
+)
+
+func3=$(cat << EndOfMessage
+a = 4
+def fn(){ a = a + 1 }
+fn()
+print(a)
+EndOfMessage
+)
+
+
+if1=$(cat << EndOfMessage
 a = 8
 if a == 4 {
     a = 3
@@ -43,44 +57,16 @@ else {
 print(a)
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "4" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+list1=$(cat << EndOfMessage
 a = [0 , 1+3, [7]]
 print(a)
 b = a
+print(b[2])
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "5" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-def fn(a){
-    if a < 4 { return fn(a+1) }
-    else { return a }
-    }
-fn(1)
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "6" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-a = 4
-def fn(){ a = a + 1 }
-fn()
-print(a)
-EndOfMessage
-)
-run "$code"
-fi
-
-if test "$1" = "7" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+class1=$(cat << EndOfMessage
 class Animal {
     a = 5
     def __init__(self, b){
@@ -97,11 +83,8 @@ cat.c = 5
 cat.printc()
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "8" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+class2=$(cat << EndOfMessage
 class A {
     def __init__(self){
         self.a = 1
@@ -122,12 +105,9 @@ print(a.a)
 print(b.a)
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "if1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+if2=$(cat << EndOfMessage
 a = 1
 if a < 1 {
     a = 2
@@ -144,20 +124,14 @@ else {
 print(a)
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "if2" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+if3=$(cat << EndOfMessage
 if 0 {def fn(){ print(4) }} else {def fn(){ print(5) }}
 fn()
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "if3" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+if4=$(cat << EndOfMessage
 a=4
 if 1 {
     if a == 9 { b = 8 }
@@ -167,23 +141,17 @@ else { c = 2 }
 print(b)
 EndOfMessage
 )
-run "$code"
-fi
 
 
 
-if test "$1" = "11" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+comp1=$(cat << EndOfMessage
 1 == 1
 1 == 2
 1 <= 2
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "12" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+str1=$(cat << EndOfMessage
 a="Okay"
 b="Hello World!"
 print(a.length())
@@ -192,12 +160,8 @@ print(a)
 print(b)
 EndOfMessage
 )
-run "$code"
-fi
 
-
-if test "$1" = "13" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+list2=$(cat << EndOfMessage
 a=[5,3]
 print(a[0])
 print(a[1])
@@ -208,12 +172,9 @@ print([].length())
 # print([][0])
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "14" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+class3=$(cat << EndOfMessage
 class A {
     def __repr__(self){
         return 3
@@ -226,32 +187,23 @@ print(a)
 print(b)
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "15" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+err1=$(cat << EndOfMessage
 non_existing_fn(3)
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "16" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+str2=$(cat << EndOfMessage
 a="begin "
 b=" end"
 c=a+b
 print(c)
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "17" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+class4=$(cat << EndOfMessage
 class A {
     def __init__(self, val){
         self.val = val
@@ -266,32 +218,21 @@ c = a+b
 print(c.val)
 EndOfMessage
 )
-run "$code"
-fi
 
-
-if test "$1" = "18" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+range1=$(cat << EndOfMessage
 a=range(5)
 print(a[2])
 EndOfMessage
 )
-run "$code"
-fi
 
-
-if test "$1" = "for1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+for1=$(cat << EndOfMessage
 for a in range(3){
     print(a)
     }
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "for2" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+for2=$(cat << EndOfMessage
 for a in range(2){
     for b in range(2){
         if a + b == 2 {
@@ -301,35 +242,25 @@ for a in range(2){
     }
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "for3" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+for3=$(cat << EndOfMessage
 for a in [5+3, 9, "hi"]{
     print(a)
     }
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "for4" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+for4=$(cat << EndOfMessage
 for a in range(4){
     if a < 2 { continue }
     print(a)
     }
 EndOfMessage
 )
-run "$code"
-fi
 
-
-if test "$1" = "while1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+while1=$(cat << EndOfMessage
 a = 0
 while a < 10 {
     print(a)
@@ -337,11 +268,8 @@ while a < 10 {
     }
 EndOfMessage
 )
-run "$code"
-fi
 
-if test "$1" = "while2" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+while2=$(cat << EndOfMessage
 a = 0
 while a < 10 {
     while a < 5 {
@@ -352,12 +280,9 @@ while a < 10 {
     }
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "while3" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+while3=$(cat << EndOfMessage
 a = 0
 while a < 5 {
     a = a + 1
@@ -366,12 +291,9 @@ while a < 5 {
     }
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "forwhile1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+forwhile1=$(cat << EndOfMessage
 a = 0
 while a < 10 {
     if a == 4 { break }
@@ -384,33 +306,15 @@ print("finished")
 # 0 0 1 0 1 2
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "tokenize1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+tokenize1=$(cat << EndOfMessage
 a = -1 - 4
 EndOfMessage
 )
-echo "$code" | tokenize
-fi
 
 
-if test "$1" = "negint1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
-a = -1 + 4
-print(a)
-b = -1 + -4
-print(b)
-EndOfMessage
-)
-run "$code"
-fi
-
-
-if test "$1" = "tokenize_floats" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+tokenize_floats=$(cat << EndOfMessage
 a = 0.4 + 5 ;;
 a = .4 + 5 ;;
 a = 3. + 5 ;;
@@ -418,11 +322,8 @@ a = . + ;;
 a3.method() ;;
 EndOfMessage
 )
-echo "$code" | tokenize
-fi
 
-if test "$1" = "tokenize_negfloats" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+tokenize_negfloats=$(cat << EndOfMessage
 a = -0.4 + 5 ;;
 a = -.4 + 5 ;;
 a = -3. + 5 ;;
@@ -430,23 +331,17 @@ a = . + ;;
 a3.method() ;;
 EndOfMessage
 )
-echo "$code" | tokenize
-fi
 
-if test "$1" = "negint1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+negint1=$(cat << EndOfMessage
 a = -1 + 4
 print(a)
 b = -1 + -4
 print(b)
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "floats1" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+floats1=$(cat << EndOfMessage
 a = .1
 b = 4.5
 print(a+b)
@@ -460,12 +355,10 @@ print(0.1 < 0.3)
 print(0.3 > 0.3)
 EndOfMessage
 )
-run "$code"
-fi
 
 
-if test "$1" = "overloaded_comps" || test -z "$1" ; then
-code=$(cat << EndOfMessage
+
+overloaded_comps=$(cat << EndOfMessage
 class A {
     def __lt__(self, o){return 1}
     def __gt__(self, o){return 2}
@@ -483,5 +376,76 @@ print(a==3)
 print(a!=3)
 EndOfMessage
 )
-run "$code"
-fi
+
+
+# _______________________________________________________________
+# basic
+# func1 func2 func3
+# if1 if2 if3 if4
+# list1 list2
+# class1 class2 class3 class4
+# comp1 overloaded_comps
+# str1 str2
+# range1
+# for1 for2 for3 for4
+# while1 while2 while3
+# forwhile1
+# negint1
+# floats1
+# err1
+# tokenize1
+# tokenize_floats
+# tokenize_negfloats
+
+main(){
+    local code start_time end_time diff
+
+    local scripts=()
+    for arg in $@ ; do
+        if streq "$arg" "-d" ; then
+            debug_mode=1
+        elif streq "$arg" "for" ; then
+            scripts+=("for1" "for2" "for3" "for4")
+        elif streq "$arg" "class" ; then
+            scripts+=("class1" "class2" "class3" "class4")
+        elif streq "$arg" "while" ; then
+            scripts+=("while1" "while2" "while3")
+        elif streq "$arg" "func" ; then
+            scripts+=("func1" "func2" "func3")
+        elif streq "$arg" "list" ; then
+            scripts+=("list1" "list2")
+        elif streq "$arg" "str" ; then
+            scripts+=("str1" "str2")
+        else
+            scripts+=("$arg")
+        fi
+    done
+
+    for arg in ${scripts[@]} ; do
+
+        code="${!arg}"
+        if test -z "$code" ; then
+            echo "No such script: $arg"
+            continue
+        fi
+
+        echo "_____________________________________________________________"
+        echo "Running $arg; code:"
+        echo "$code"
+        echo "----"
+        start_time=$(date +%s)
+
+        if ( run "$code" ) ; then
+            end_time=$(date +%s)
+            diff=$(echo "$end_time - $start_time" | bc)
+            echo "---- Ran $arg succesfully, t=${diff}s"
+        else
+            echo "Error on $arg"
+            debug_mode=1
+            run $code
+            return 1
+        fi
+    done
+    }
+
+main $@

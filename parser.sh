@@ -1,9 +1,9 @@
 # MINIMAL TODO LIST
 # - factors, subtraction, and multiplication/division
-# - change echo's to debug, and allow running without debug
 # - minimal test suite
 # - shell interop
 # - make __repr__ logically consistent
+# x change echo's to debug, and allow running without debug
 # x floats (incl negative)
 # x unary minus
 # x __eq__ (needed for str comp)
@@ -31,6 +31,7 @@
 # - interpreter & .pop file ingestion
 # - much better error messages
 # - delete keyword
+# - parser code without any debug statements (generate with python)
 
 # ULTIMATELY
 # - modulo, //, binary ops?
@@ -55,6 +56,7 @@ inside_class_def=0
 inside_function=0
 current_classnr=""
 same_scope_as_parent_parser=0
+debug_mode=0
 
 
 _new_obj(){
@@ -88,13 +90,19 @@ error(){
     exit 1
     }
 
+debug(){
+    if test $debug_mode -eq 1 ; then
+        echo "DEBUG: " $@
+    fi
+    }
+
 advance(){
     ((itoken++))
     current_token="${tokens[$itoken]}"
     next_token="${tokens[$itoken+1]}"
     if strempty "$current_token" ; then current_token="EOF" ; fi
     if strempty "$next_token" ; then next_token="EOF" ; fi
-    # echo "Advanced to itoken=$itoken current_token=${current_token}"
+    # debug "Advanced to itoken=$itoken current_token=${current_token}"
     if streq "$current_token" "EOF" && test ${#token_stack[@]} -gt 0 ; then
         # Current token stream exhausted but there is something on the stack
         pop_tokens
@@ -111,33 +119,33 @@ push_tokens(){
     # Overwrite the current token stream and reset
     local overwrite_token_str="SEP $2 SEP"
     read -ra tokens <<< $overwrite_token_str
-    echo "Pushed to stack"
-    echo "  token_stack=${token_stack[@]}"
-    echo "  len token_stack=${#token_stack[@]}"
-    echo "  token_pickup_stack=${token_pickup_stack[@]}"
-    echo "  tokens=${tokens[@]} (starting at 0)"
+    debug "Pushed to stack"
+    debug "  token_stack=${token_stack[@]}"
+    debug "  len token_stack=${#token_stack[@]}"
+    debug "  token_pickup_stack=${token_pickup_stack[@]}"
+    debug "  tokens=${tokens[@]} (starting at 0)"
     itoken="-1" ; advance
     }
 
 
 pop_tokens(){
     local last="${#token_stack[@]}" ; ((last--))
-    echo "Picking up previous stream; last=$last"
+    debug "Picking up previous stream; last=$last"
     # Get the tokens on top of the stack, and read them back into the current token stream
     tokens="${token_stack[$last]}"
     read -ra tokens <<< $tokens
-    echo "  set current token stream to ${tokens[@]}"
+    debug "  set current token stream to ${tokens[@]}"
     # Delete the last element of the token stack
     unset "token_stack[$last]"
     # Pop the index from which the current stream is supposed to be picked up
     itoken="${token_pickup_stack[$last]}"
-    echo "  set itoken to $itoken"
+    debug "  set itoken to $itoken"
     unset "token_pickup_stack[$last]"
     unset "token_type_stack[$last]"
     # Reset
     ((itoken--))
     advance
-    echo "  itoken=$itoken current_token=$current_token next_token=$next_token"
+    debug "  itoken=$itoken current_token=$current_token next_token=$next_token"
     }
 
 eat(){
@@ -205,9 +213,8 @@ resolve_id(){
     # Check if it succeeded
     if strempty "$rv" ; then
         error "failed to resolve $rid"
-    else
-        echo "Resolved $rid to $rv"
     fi
+    debug "Resolved $rid to $rv"
     }
 
 
@@ -223,9 +230,8 @@ resolve(){
     # Check if it succeeded
     if strempty "$rv" ; then
         error "failed to resolve $rid"
-    else
-        echo "Resolved $rid to $rv"
     fi
+    debug "Resolved $rid to $rv"
     }
 
 
@@ -297,13 +303,13 @@ read_braces_block(){
 
 run(){
     local code="$1"
-    echo "Running the following code:"
-    echo "$code"
-    echo ""
+    debug "Running the following code:"
+    debug "$code"
+    debug ""
 
     local token_string=$(echo "$code" | tokenize)
-    # echo "which is the following tokens: $token_string"
-    # echo ""
+    # debug "which is the following tokens: $token_string"
+    # debug ""
 
     parse "$token_string"
     }
@@ -333,7 +339,7 @@ parse(){
     local for_loop_iterid_stack=()
 
     read -ra tokens <<< $1
-    echo "Parsing the following tokens: ${tokens[@]}"
+    debug "Parsing the following tokens: ${tokens[@]}"
 
     local itoken="-1" ; advance # initialize
 
@@ -364,9 +370,9 @@ parse(){
             fi
             ((inside_function--))
             expr_or_assignment
-            echo "Return value before resolving: $rv"
+            debug "Return value before resolving: $rv"
             resolve_id "$rv"
-            echo "Return value: $rv"
+            debug "Return value: $rv"
             break
         else
             expr_or_assignment
@@ -378,9 +384,9 @@ parse(){
             # 2 means global: always skip "local" kw
             if test $pending_assignment -eq 1 ; then
                 local "$leftid"
-                echo "Local assignment $leftid = $rightval"
+                debug "Local assignment $leftid = $rightval"
             else
-                echo "Global assignment $leftid = $rightval"
+                debug "Global assignment $leftid = $rightval"
             fi
             # Assign the actual id, and revert $pending_assignment back to 0
             export "$leftid"="$rightval"
@@ -394,12 +400,12 @@ parse(){
 
 
 continue_loop(){
-    echo "Hit continue"
+    debug "Hit continue"
     # Pop out of any if's
-    echo "  token_type_stack=${token_type_stack[@]}"
+    debug "  token_type_stack=${token_type_stack[@]}"
     local peek=${token_type_stack[${#token_type_stack[@]}-1]}
     while streq $peek  "if" ; do
-        echo "  in if-subscope, popping out"
+        debug "  in if-subscope, popping out"
         pop_tokens
         peek=${token_type_stack[${#token_type_stack[@]}-1]}
     done
@@ -416,12 +422,12 @@ continue_loop(){
 
 
 break_loop(){
-    echo "Hit break"
+    debug "Hit break"
     # Pop out of any if's
-    echo "  token_type_stack=${token_type_stack[@]}"
+    debug "  token_type_stack=${token_type_stack[@]}"
     local peek=${token_type_stack[${#token_type_stack[@]}-1]}
     while streq $peek  "if" ; do
-        echo "  in if-subscope, popping out"
+        debug "  in if-subscope, popping out"
         pop_tokens
         peek=${token_type_stack[${#token_type_stack[@]}-1]}
     done
@@ -446,7 +452,7 @@ break_loop(){
 
 
 for_statement(){
-    echo "New for statement"
+    debug "New for statement"
 
     eat_sep
     local iterid="$current_token"
@@ -491,7 +497,7 @@ for_statement(){
 
 
 loopfor(){
-    echo "In loopfor; loop_stack=${loop_stack[@]}"
+    debug "In loopfor; loop_stack=${loop_stack[@]}"
     # Check if we're actually in a for loop
     local last=${#loop_stack[@]} ; ((last--))
     if test $last -eq -1 || strneq "${loop_stack[$last]}" "for" ; then
@@ -507,17 +513,17 @@ loopfor(){
 
     call "${iterable}ID__getitem__" "INT$i"
     local code="$?"
-    echo "  __getitem__ call has status code $code"
+    debug "  __getitem__ call has status code $code"
     if test $code -eq 0 ; then
         # Next item well received; revert to beginning of the for loop
         pending_assignment=1
         leftid="$iterid"
         rightval="$rv"
         itoken=0
-        echo "  next item $i, set itoken to $itoken"
+        debug "  next item $i, set itoken to $itoken"
     elif test $code -eq 21 ; then
         # IndexError: Must have reached end of iterable
-        echo "  reached end at $i, exiting for-loop"
+        debug "  reached end at $i, exiting for-loop"
         unset "for_loop_iterable_stack[$last]"
         unset "for_loop_index_stack[$last]"
         unset "for_loop_iterid_stack[$last]"
@@ -530,7 +536,7 @@ loopfor(){
 
 
 while_statement(){
-    echo "New while statement"
+    debug "New while statement"
     eat_sep
 
 
@@ -548,7 +554,7 @@ while_statement(){
         local n=$(($itoken_after_conditional-$itoken_before_conditional))
 
         local tokens_for_conditional="${tokens[@]:$itoken_before_conditional:$n}"
-        echo "  using the following tokens as the conditional: ${tokens_for_conditional[@]}"
+        debug "  using the following tokens as the conditional: ${tokens_for_conditional[@]}"
         while_loop_conditional_stack+=("${tokens_for_conditional[@]}")
 
         push_tokens "while" "$the_code_block SEP LOOPWHILE SEP"
@@ -567,22 +573,22 @@ loopwhile(){
     local conditional="${while_loop_conditional_stack[$last]}"
 
     parse "$conditional" ; the_boolean="$rv"
-    echo "outcome of conditional: $the_boolean"
+    debug "outcome of conditional: $the_boolean"
 
     if strneq $the_boolean "INT0" ; then
-        echo "loopwhile: going back to itoken=0"
+        debug "loopwhile: going back to itoken=0"
         itoken=-1
         advance
-        echo "$itoken $current_token $next_token ---- ${tokens[@]}"
+        debug "$itoken $current_token $next_token ---- ${tokens[@]}"
     else
-        echo "loopwhile: exiting loop"
+        debug "loopwhile: exiting loop"
         unset "while_loop_conditional_stack[$last]"
     fi
     }
 
 
 if_statement(){
-    echo "New if statement"
+    debug "New if statement"
 
     local code_to_be_executed the_boolean the_code_block
     local looking_for_code_to_execute=1
@@ -629,16 +635,16 @@ if_statement(){
 
     if test $looking_for_code_to_execute -eq 0 ; then
         # Some code to execute was found
-        echo "Running the following code: $code_to_be_executed"
+        debug "Running the following code: $code_to_be_executed"
         push_tokens "if" "$code_to_be_executed"
     else
-        echo "No branch of if statement found to execute"
+        debug "No branch of if statement found to execute"
     fi
     }
 
 
 define_class(){
-    echo "Defining a new class"
+    debug "Defining a new class"
     id ; local classid="$rv"
 
     if test $inside_class_def -eq 1 ; then
@@ -667,12 +673,12 @@ define_class(){
     pending_assignment=1
     leftid="$classid"
     rightval="$classnr"
-    echo "Pending assignment $leftid = $rightval"
+    debug "Pending assignment $leftid = $rightval"
     }
 
 
 define_fn(){
-    echo "Defining a new function"
+    debug "Defining a new function"
     id ; local fnid="$rv"
 
     if strneq "${fnid:0:2}" "ID" ; then
@@ -697,7 +703,7 @@ define_fn(){
             elif maybe_eat "PNC)" ; then
                 break
             else
-                echo "ERROR expected , or ) but got $current_token"
+                debug "ERROR expected , or ) but got $current_token"
             fi
         done
     fi
@@ -722,32 +728,32 @@ define_fn(){
 
     if test $inside_class_def -eq 1 ; then
         # This function is a method; assign it in global scope
-        echo "Assigning ${current_classnr}${fnid} = $obj"
+        debug "Assigning ${current_classnr}${fnid} = $obj"
         export "${current_classnr}${fnid}"="$obj"
     else
         # The assignment should only live in the current scope;
         # should be resolved in `parse`
-        echo "Pending assignment $fnid = $obj"
+        debug "Pending assignment $fnid = $obj"
         pending_assignment=1
         leftid="$fnid"
         rightval="$obj"
     fi
 
     # Debug printout
-    echo "  $obj =" ${!obj}
+    debug "  $obj =" ${!obj}
     local tmp="${obj}ID__name__"
-    echo "  ${obj}ID__name__ =" "${!tmp}"
+    debug "  ${obj}ID__name__ =" "${!tmp}"
     tmp="${obj}ID__args__"
-    echo "  ${obj}ID__args__ =" "${!tmp}"
+    debug "  ${obj}ID__args__ =" "${!tmp}"
     tmp="${obj}ID__tokens__"
-    echo "  ${obj}ID__tokens__ =" "${!tmp}"
+    debug "  ${obj}ID__tokens__ =" "${!tmp}"
     }
 
 
 expr_or_assignment(){
     expr_with_comp
     if maybe_eat "PNC=" ; then
-        echo "This is an assignment"
+        debug "This is an assignment"
         leftid="$rv"
         expr_with_comp
         resolve_id "$rv"
@@ -765,7 +771,7 @@ expr_or_assignment(){
                 pending_assignment=2
             fi
         fi
-        echo "Pending assignment $leftid = $rightval ($pending_assignment)"
+        debug "Pending assignment $leftid = $rightval ($pending_assignment)"
     fi
     }
 
@@ -776,7 +782,7 @@ expr_with_comp(){
         resolve_id $rv ; local left_val="$rv"
         local comp_token="$current_token"
         advance
-        echo "Detected comparison $comp_token"
+        debug "Detected comparison $comp_token"
         expr
         resolve_id $rv ; local right_val="$rv"
         
@@ -810,7 +816,7 @@ expr_with_comp(){
             error "TODO: string comparisons or op overloading not yet supported"
         fi
 
-        echo "$left_val $comp_token $right_val = $rv"
+        debug "$left_val $comp_token $right_val = $rv"
     fi
     }
 
@@ -818,7 +824,7 @@ expr_with_comp(){
 expr(){
     composed_id
     if maybe_eat "PNC+" ; then
-        echo "Found addition"
+        debug "Found addition"
         left_rv="$rv"
         composed_id
         right_rv="$rv"
@@ -844,11 +850,11 @@ composed_id(){
             resolve_id $rv ; local before_dot=$rv
             id
             rv="${before_dot}$rv"
-            echo "get attribute: $old_rv --> $rv"
+            debug "get attribute: $old_rv --> $rv"
 
         elif maybe_eat "PNC(" ; then
             local fnid="$rv"
-            echo "Detected callable $fnid"
+            debug "Detected callable $fnid"
             eat_sep
             # Parse arguments
             local args=()
@@ -903,9 +909,9 @@ composed_id(){
 
     # Apply unary minus if necessary
     if test $negate -eq 1 ; then
-        echo "Applying unary minus on $rv"
+        debug "Applying unary minus on $rv"
         unary_minus "$rv"
-        echo "  after unary minus: $rv"
+        debug "  after unary minus: $rv"
     fi
     }
 
@@ -915,7 +921,7 @@ id(){
         list
     elif test "${current_token:0:2}" = "ID" || is_int_or_float "$current_token" ; then
         rv="$current_token"
-        echo "Found ID $current_token"
+        debug "Found ID $current_token"
         advance
     elif test "${current_token:0:3}" = "STR" ; then
         newstr "$(echo "${current_token:3}" | tr "~" " ")"
@@ -930,12 +936,12 @@ newstr(){
     _new_obj ; local obj=$rv
     export "$obj"="STR"        
     export "${obj}IDstr"="$1"
-    echo "New string $obj w/ ${obj}IDstr=$1"
+    debug "New string $obj w/ ${obj}IDstr=$1"
     }
 
 
 list(){
-    echo "Init list"
+    debug "Init list"
     _new_obj ; local obj="$rv"
     export "$obj"="LIST"
     
@@ -962,7 +968,7 @@ list(){
     local tmp="${elements[@]}"
     export "${obj}IDelements"="$tmp"
     rv=$obj
-    echo "Parsed list $obj: ${elements[@]}"
+    debug "Parsed list $obj: ${elements[@]}"
     }
 
 
@@ -997,7 +1003,7 @@ add(){
         int1="${val1:3}"
         int2="${val2:3}"
         rv="INT$(($int1+$int2))"
-        echo "Added $val1 + $val2 = $rv"
+        debug "Added $val1 + $val2 = $rv"
     elif is_int_or_float $val1 && is_int_or_float $val2 ; then
         val1="${val1:3}"
         val2="${val2:3}"
@@ -1029,7 +1035,7 @@ call(){
         local fnname=${fnid##*ID}
         resolve $owner_obj ; local classnr=$rv
         fnid="${classnr}ID$fnname"
-        echo "Elevating unfound $old_fnid to $fnid and inserting $owner_obj as first arg"
+        debug "Elevating unfound $old_fnid to $fnid and inserting $owner_obj as first arg"
         args=($owner_obj "${args[@]}")
     fi
 
@@ -1061,7 +1067,7 @@ call(){
     # If we reach this point, the function must be user-defined,
     # and thus must exist.
     if not_exists $fnid ; then
-        echo "No such function: $fnid"
+        debug "No such function: $fnid"
         return 1
     fi
 
@@ -1089,9 +1095,9 @@ parse_user_defined_fn(){
     fi
     resolve_id "${obj}ID__tokens__"; local fn_code="$rv"
 
-    echo "Called user-defined function $fnid with arguments ${args[@]}"
-    echo "  function arguments: ${fn_args[@]}"
-    echo "  function code body: $fn_code"
+    debug "Called user-defined function $fnid with arguments ${args[@]}"
+    debug "  function arguments: ${fn_args[@]}"
+    debug "  function code body: $fn_code"
 
     # Check if number of passed arguments matches function signature
     if test "${#args[@]}" -ne "${#fn_args[@]}" ; then
@@ -1104,13 +1110,13 @@ parse_user_defined_fn(){
         local "${fn_args[$i]}" # define the ID of the argument locally
         resolve_id "${args[$i]}" # resolve the rightval
         export "${fn_args[$i]}"="$rv" # actually set the ID to the value
-        echo "  Defining fn arg ${fn_args[$i]} = $rv"
+        debug "  Defining fn arg ${fn_args[$i]} = $rv"
     done
 
     # Run the function; return value should be already set correctly
     ((inside_function++))
     parse "$fn_code"
-    echo "Back in parent scope: current_token=$current_token, itoken=$itoken rv=$rv"
+    debug "Back in parent scope: current_token=$current_token, itoken=$itoken rv=$rv"
     }
 
 
@@ -1124,7 +1130,7 @@ instantiate(){
     _new_obj ; local obj=$rv
     export "$obj"=$classnr
 
-    echo "Instantiating class $classid ($classnr) to $obj with args ${args[@]}"
+    debug "Instantiating class $classid ($classnr) to $obj with args ${args[@]}"
 
     local init_method="${classnr}ID__init__"
     if exists $init_method ; then
@@ -1161,7 +1167,7 @@ printfn(){
             printstr="$obj"
         fi
 
-        echo ">>> POPOUT: $printstr"
+        echo "$printstr"
     done
     rv="NULL"
     return 0
@@ -1200,12 +1206,12 @@ range(){
         elements+=("INT$i")
     done
 
-    echo "Init list in range fn"
+    debug "Init list in range fn"
     _new_obj ; local obj="$rv"
     export "$obj"="LIST"    
     local elementstr="${elements[@]}"
     export "${obj}IDelements"="$elementstr"
-    echo "Parsed range list $obj: ${elements[@]}"
+    debug "Parsed range list $obj: ${elements[@]}"
     rv=$obj
     }
 
@@ -1242,7 +1248,7 @@ str_methods(){
         resolve_id "${rightobj}IDstr"
         newstr "$str$rv"
     else
-        echo "no such STR method: $fnid"
+        debug "no such STR method: $fnid"
         return 1
     fi
     }
@@ -1252,7 +1258,7 @@ list_methods(){
     local args
     read -ra args <<< $2
     local nargs="${#args[@]}"
-    echo "Called list method $fnid with args ${args[@]}"
+    debug "Called list method $fnid with args ${args[@]}"
 
     local obj="${args[0]}"
     resolve_id "${obj}IDelements"
@@ -1261,7 +1267,7 @@ list_methods(){
     local nelements="${#elements[@]}"
     ((nelements--)) # Subtract 1 for the dummy element
     
-    echo "  obj=$obj elements=${elements[@]}"
+    debug "  obj=$obj elements=${elements[@]}"
 
     if streq "$fnid" "LISTID__getitem__" ; then
         if test $nargs -ne 2 ; then
@@ -1274,7 +1280,7 @@ list_methods(){
         index="${index:3}"
         if test $index -ge $nelements ; then
             # error "index $index out of range $nelements"
-            echo "  index=$index not in range (0-$nelements); return 21 (IndexError)"
+            debug "  index=$index not in range (0-$nelements); return 21 (IndexError)"
             return 21 # indexerror
         fi
         ((index++)) # Increase by one because there is a dummy element
@@ -1285,7 +1291,7 @@ list_methods(){
         fi
         rv="INT$nelements"
     else
-        echo "no such LIST method: $fnid"
+        debug "no such LIST method: $fnid"
         return 1  
     fi
     }
