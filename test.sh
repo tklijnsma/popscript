@@ -175,16 +175,18 @@ EndOfMessage
 
 
 class3=$(cat << EndOfMessage
-class A {
-    def __repr__(self){
-        return 3
-        }
-    }
-class B {}
+class A { def __repr__(self){return 3} }
+class B { def __repr__(self){return "I am a class!"} }
+class C {}
+class D { def __repr__(self){return B()} }
 a = A()
 b = B()
+c = C()
+d = D()
 print(a)
 print(b)
+print(c)
+print(d)
 EndOfMessage
 )
 

@@ -1,7 +1,7 @@
 # MINIMAL TODO LIST
 # - minimal test suite
 # - shell interop
-# - make __repr__ logically consistent
+# x make __repr__ logically consistent
 # x factors, subtraction, and multiplication/division
 # x change echo's to debug, and allow running without debug
 # x floats (incl negative)
@@ -1265,25 +1265,29 @@ instantiate(){
 
 
 printfn(){
-    local args arg obj
+    local args arg obj objtype
     read -ra args <<< $1
 
     for arg in ${args[@]}; do
-        resolve_id $arg ; local obj="$rv"
+        resolve_id $arg ; obj="$rv"
 
-        if streq "${obj:0:3}" "OBJ" ; then
-            if call "${obj}ID__repr__" ; then
+        if is_int_or_float "$obj" ; then
+            printstr="${obj:3}"
+        else
+            # It's an object
+            resolve "$obj" ; objtype="$rv"
+            if streq "$objtype" "STR" ; then
+                # For STR objects, just print the contained string
+                resolve "${obj}IDstr" ; printstr="$rv"
+            elif call "${obj}ID__repr__" ; then
                 # repr method worked, print rv
-                printstr="$rv"
+                printfn "$rv"
+                continue
             else
                 # No repr method, print simply the obj
                 printstr="$obj"
             fi
-        else
-            # Must be a builtin (e.g. INT), just print as is
-            printstr="$obj"
-        fi
-
+        fi 
         echo "$printstr"
     done
     rv="NULL"
@@ -1344,15 +1348,7 @@ str_methods(){
     local obj="${args[0]}"
     resolve_id "${obj}IDstr" ; local str="$rv"
 
-    if streq "$fnid" "STRID__repr__" ; then
-        if test $nargs -ne 1 ; then
-            error "expected 1 argument"
-        fi
-        rv="$str"
-        # HIER VERDER
-        # Dit klopt niet echt... __repr__ zou toch een string object moeten returnen,
-        # En print() moet dan het str object converteren denk ik...
-    elif streq "$fnid" "STRIDlength" ; then
+    if streq "$fnid" "STRIDlength" ; then
         if test $nargs -ne 1 ; then
             error "expected 1 argument"
         fi
