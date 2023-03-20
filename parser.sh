@@ -1,8 +1,8 @@
 # MINIMAL TODO LIST
-# - factors, subtraction, and multiplication/division
 # - minimal test suite
 # - shell interop
 # - make __repr__ logically consistent
+# x factors, subtraction, and multiplication/division
 # x change echo's to debug, and allow running without debug
 # x floats (incl negative)
 # x unary minus
@@ -20,6 +20,7 @@
 
 # NEXT LEVEL
 # - more string methods (__eq__, __getitem__, split, join, replace)
+# - more list methods (__eq__, append, extend, slice)
 # - __le__, __ge__, __lt__, __gt__
 # - and/or
 # - booleans
@@ -92,7 +93,7 @@ error(){
 
 debug(){
     if test $debug_mode -eq 1 ; then
-        echo "DEBUG: " $@
+        echo "DEBUG: $@"
     fi
     }
 
@@ -822,23 +823,74 @@ expr_with_comp(){
 
 
 expr(){
-    composed_id
+    term
     if maybe_eat "PNC+" ; then
         debug "Found addition"
-        left_rv="$rv"
-        composed_id
-        right_rv="$rv"
+        local left_rv="$rv"
+        term
+        local right_rv="$rv"
         add "$left_rv" "$right_rv"
+    elif maybe_eat "PNC-" ; then
+        debug "Found subtraction"
+        local left_rv="$rv"
+        term
+        local right_rv="$rv"
+        subtract "$left_rv" "$right_rv"
     fi
     }
 
 
-composed_id(){
+term(){
+    factor
+    local left_rv right_rv
+    while : ; do
+        if maybe_eat "PNC*" ; then
+            debug "Found multiplication"
+            left_rv="$rv"
+            factor
+            right_rv="$rv"
+            multiply "$left_rv" "$right_rv"
+        elif maybe_eat "PNC/" ; then
+            debug "Found division"
+            left_rv="$rv"
+            factor
+            right_rv="$rv"
+            divide "$left_rv" "$right_rv"
+        else
+            break
+        fi
+    done
+    }
+
+
+factor(){
     local negate=0
     if maybe_eat "PNC-" ; then
         # Unary minus
         negate=1
     fi
+
+    if maybe_eat "PNC(" ; then
+        # Parenthesized expression
+        debug "Found new parenthesized expression"
+        eat_sep
+        expr_with_comp
+        eat_sep
+        eat "PNC)"
+    else
+        composed_id
+    fi
+
+    # Apply unary minus if necessary
+    if test $negate -eq 1 ; then
+        debug "Applying unary minus on $rv"
+        unary_minus "$rv"
+        debug "  after unary minus: $rv"
+    fi
+    }
+
+
+composed_id(){
 
     id
 
@@ -906,13 +958,6 @@ composed_id(){
             break
         fi
     done
-
-    # Apply unary minus if necessary
-    if test $negate -eq 1 ; then
-        debug "Applying unary minus on $rv"
-        unary_minus "$rv"
-        debug "  after unary minus: $rv"
-    fi
     }
 
 
@@ -989,21 +1034,23 @@ unary_minus(){
     fi
     }
 
-add(){
+assert_two_args(){
+    # Binary ops (+, -, *, /) all need two arguments,
+    # this function helps asserting that.
     if strempty "$1" || strempty "$2" ; then
-        error "empty string in addition"
+        error "need two arguments for binary op"
     fi
+    }
 
-    resolve_id "$1"
-    local val1="$rv"
-    resolve_id "$2"
-    local val2="$rv"
+add(){
+    assert_two_args "$1" "$2"
+    resolve_id "$1" ; local val1="$rv"
+    resolve_id "$2" ; local val2="$rv"
 
     if is_int $val1 && is_int $val2 ; then
         int1="${val1:3}"
         int2="${val2:3}"
         rv="INT$(($int1+$int2))"
-        debug "Added $val1 + $val2 = $rv"
     elif is_int_or_float $val1 && is_int_or_float $val2 ; then
         val1="${val1:3}"
         val2="${val2:3}"
@@ -1011,12 +1058,82 @@ add(){
         rv="FLT$rv"
     else
         if call "${val1}ID__add__" "$val2" ; then
-            # __add__ method succeeded
+            # method succeeded
             :
         else
             error "cannot add $val1 and $val2"
         fi
     fi
+    debug "Added $val1 + $val2 = $rv"
+    }
+
+subtract(){
+    assert_two_args "$1" "$2"
+    resolve_id "$1" ; local val1="$rv"
+    resolve_id "$2" ; local val2="$rv"
+
+    if is_int $val1 && is_int $val2 ; then
+        int1="${val1:3}"
+        int2="${val2:3}"
+        rv="INT$(($int1-$int2))"
+    elif is_int_or_float $val1 && is_int_or_float $val2 ; then
+        val1="${val1:3}"
+        val2="${val2:3}"
+        rv=$( bc <<< "$val1-$val2" )
+        rv="FLT$rv"
+    else
+        if call "${val1}ID__sub__" "$val2" ; then
+            # method succeeded
+            :
+        else
+            error "cannot subtract $val1 and $val2"
+        fi
+    fi
+    debug "Subtracted $val1 - $val2 = $rv"
+    }
+
+multiply(){
+    assert_two_args "$1" "$2"
+    resolve_id "$1" ; local val1="$rv"
+    resolve_id "$2" ; local val2="$rv"
+
+    if is_int $val1 && is_int $val2 ; then
+        int1="${val1:3}"
+        int2="${val2:3}"
+        rv="INT$(($int1*$int2))"
+    elif is_int_or_float $val1 && is_int_or_float $val2 ; then
+        val1="${val1:3}"
+        val2="${val2:3}"
+        rv="FLT$( bc <<< "$val1*$val2" )"
+    else
+        if call "${val1}ID__prod__" "$val2" ; then
+            # method succeeded
+            :
+        else
+            error "cannot multiply $val1 and $val2"
+        fi
+    fi
+    debug "Multiplied $val1 * $val2 = $rv"
+    }
+
+divide(){
+    assert_two_args "$1" "$2"
+    resolve_id "$1" ; local val1="$rv"
+    resolve_id "$2" ; local val2="$rv"
+
+    if is_int_or_float $val1 && is_int_or_float $val2 ; then
+        val1="${val1:3}"
+        val2="${val2:3}"
+        rv="FLT$( bc -l <<< "$val1/$val2" )"
+    else
+        if call "${val1}ID__div__" "$val2" ; then
+            # method succeeded
+            :
+        else
+            error "cannot divide $val1 and $val2"
+        fi
+    fi
+    debug "Divided $val1 / $val2 = $rv"
     }
 
 

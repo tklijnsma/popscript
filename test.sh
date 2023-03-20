@@ -377,6 +377,30 @@ print(a!=3)
 EndOfMessage
 )
 
+binaryops=$(cat << EndOfMessage
+print(5+3)
+print(5-3)
+print(5*3)
+print(5/3)
+print(2*2+3/2*2)
+print(2*(2+3)/2*2)
+EndOfMessage
+)
+
+overloaded_ops=$(cat << EndOfMessage
+class A {
+    def __add__(self, o){return 1}
+    def __sub__(self, o){return 2}
+    def __prod__(self, o){return 3}
+    def __div__(self, o){return 4}
+    }
+a = A()
+print(a+3)
+print(a-3)
+print(a*3)
+print(a/3)
+EndOfMessage
+)
 
 # _______________________________________________________________
 # basic
