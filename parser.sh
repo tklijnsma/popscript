@@ -1,5 +1,5 @@
 # MINIMAL TODO LIST
-# - interpreter & .pop file ingestion
+# x .pop file ingestion
 # x shell interop, best way is probably with f-strings; tokenization done
 # x make __repr__ logically consistent
 # x factors, subtraction, and multiplication/division
@@ -22,6 +22,8 @@
 
 
 # NEXT LEVEL
+# - a REPL interpreter
+# - an import system
 # - mechanism for escape chars in str, at least \~, \"
 # - global keyword for pickup later in the script
 # - minimal test suite
@@ -38,7 +40,8 @@
 # - parser code without any debug statements (generate with python)
 
 # ULTIMATELY
-# - modulo, //, binary ops?
+# - test on different shells
+# - modulo, //, bitwise ops
 # - multiline strings
 # - garbage collection
 # - error handling
@@ -61,6 +64,43 @@ inside_function=0
 current_classnr=""
 same_scope_as_parent_parser=0
 debug_mode=0
+
+
+pop(){
+    # Main entry point for popscript
+    local arg
+    local program_passed_as_string=0
+    local thing_to_do="NULL"
+
+    for arg in $@ ; do
+        if streq $arg "-c" ; then
+            program_passed_as_string=1
+        elif streq $arg "-d" ; then
+            debug_mode=1
+        else
+            if streq $thing_to_do "NULL" ; then
+                thing_to_do="$arg"
+            else
+                echo "Warning: ignoring $arg (thing_to_do=$thing_to_do)"
+            fi
+        fi
+    done
+
+    if test ! -t 0 ; then
+        # pop is being ran as part of a pipe
+        code=$(</dev/stdin)
+        run "$code"
+    elif test $program_passed_as_string -eq 1 ; then
+        # Input given as a string on the command line
+        run "$thing_to_do"
+    elif streq "$thing_to_do" "NULL" ; then
+        # Start interpreter
+        echo "REPL interpreter is a todo item!"
+    else
+        # Run from a file
+        run "$(cat $thing_to_do)"
+    fi
+    }
 
 
 _new_obj(){
