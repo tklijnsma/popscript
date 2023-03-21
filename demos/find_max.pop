@@ -1,0 +1,6 @@
+my_list = [4, 1, -3.4, 10, 9, 8]
+max_val = -1000000
+for val in my_list {
+    if val > max_val { max_val = val }
+    }
+print(max_val)
