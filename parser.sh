@@ -1,6 +1,6 @@
 # MINIMAL TODO LIST
-# - minimal test suite
-# - shell interop
+# - interpreter & .pop file ingestion
+# x shell interop, best way is probably with f-strings; tokenization done
 # x make __repr__ logically consistent
 # x factors, subtraction, and multiplication/division
 # x change echo's to debug, and allow running without debug
@@ -17,19 +17,22 @@
 # x strings
 # x lists
 # x range
+# x __le__, __ge__, __lt__, __gt__
+# x conversions to strings, especially for ints/floats
+
 
 # NEXT LEVEL
+# - mechanism for escape chars in str, at least \~, \"
+# - global keyword for pickup later in the script
+# - minimal test suite
 # - more string methods (__eq__, __getitem__, split, join, replace)
 # - more list methods (__eq__, append, extend, slice)
-# - __le__, __ge__, __lt__, __gt__
 # - and/or
 # - booleans
 # - single quote strings
 # - basic benchmarking
 # - += and the like
-# - conversions to strings, especially for ints/floats
 # - dictionaries
-# - interpreter & .pop file ingestion
 # - much better error messages
 # - delete keyword
 # - parser code without any debug statements (generate with python)
@@ -971,9 +974,75 @@ id(){
     elif test "${current_token:0:3}" = "STR" ; then
         newstr "$(echo "${current_token:3}" | tr "~" " ")"
         advance
+    elif test "${current_token:0:4}" = "FSTR" ; then
+        # newstr "$(echo "${current_token:3}" | tr "~" " ")"
+        parse_fstr "$(echo "${current_token:4}" | tr "~" " ")"
+        advance
     else
         error "expected an ID but found $current_token"
     fi
+    }
+
+
+parse_fstr(){
+    local i=0
+    local str="$1"
+    local len="${#str}"
+    local c next_c nopen expr
+    out=""
+
+    debug "Parsing f-string \"$str\""
+
+    while test $i -lt $len ; do
+        c="${str:$i:1}"
+        next_c="${str:$((i+1)):1}"
+        debug "i=$i c=$c next_c=$next_c"
+
+        if streq "$c" "}" ; then
+            if streq "$next_c" "}" ; then
+                out="$out}"
+                ((i+=2)) # Extra skip: Double }} counts as one }
+            else
+                error "single } not allowed"
+            fi
+        elif streq "$c" "{" ; then
+            if streq "$next_c" "{" ; then
+                out="$out{"
+                ((i+=2)) # Extra skip: Double {{ counts as 1
+            else
+                # Found an expression; look for the matching closing }
+                debug "  start of subexpression"
+                nopen=1
+                ((i++))
+                expr=""
+                while : ; do
+                    c="${str:$i:1}"
+                    case $c in
+                        "}") ((nopen--)) ;;
+                        "{") ((nopen++)) ;;
+                    esac
+                    ((i++))
+                    if test $nopen -eq 0 ; then
+                        # Found closing }, break loop
+                        break
+                    fi
+                    expr="$expr$c"
+                    if test $i -ge $len ; then
+                        error "reached EOF when parsing fstr"
+                    fi
+                done
+                debug "  found expr $expr"
+                parse "$( tokenize <<< $expr )"
+                repr "$rv"
+                debug "  output of subparse: $rv"
+                out="$out$rv"
+            fi
+        else
+            out="$out$c"
+            ((i++))
+        fi
+    done
+    newstr "$out"
     }
 
 
@@ -1172,6 +1241,12 @@ call(){
     elif streq "$fnid" "IDprint" ; then
         printfn "$2"
         return 0
+    elif streq "$fnid" "IDstr" ; then
+        repr "$2" ; newstr "$rv"
+        return 0
+    elif streq "$fnid" "IDshell" ; then
+        repr "$2" ; shell "$rv"
+        return 0
     elif streq "$fnid" "IDrange" ; then
         range "$2"
         return 0
@@ -1264,31 +1339,39 @@ instantiate(){
     }
 
 
+repr(){
+    # Takes an object, an returns a *posix string*
+    resolve_id "$1" ; obj="$rv"
+
+    if is_int_or_float "$obj" ; then
+        rv="${obj:3}"
+    else
+        # It's an object
+        resolve "$obj" ; objtype="$rv"
+        if streq "$objtype" "STR" ; then
+            # For STR objects, just print the contained string
+            resolve "${obj}IDstr"
+        elif call "${obj}ID__repr__" ; then
+            # __repr__ method worked, which returned an object
+            # recursively call repr until something is printable
+            repr "$rv"
+        else
+            # No __repr__ method, print simply the obj
+            rv="$obj"
+        fi
+    fi 
+    }
+
+
+# BUILTIN FUNCTIONS
+
 printfn(){
+    # Calls repr on all passed objects and echo's output
     local args arg obj objtype
     read -ra args <<< $1
-
     for arg in ${args[@]}; do
-        resolve_id $arg ; obj="$rv"
-
-        if is_int_or_float "$obj" ; then
-            printstr="${obj:3}"
-        else
-            # It's an object
-            resolve "$obj" ; objtype="$rv"
-            if streq "$objtype" "STR" ; then
-                # For STR objects, just print the contained string
-                resolve "${obj}IDstr" ; printstr="$rv"
-            elif call "${obj}ID__repr__" ; then
-                # repr method worked, print rv
-                printfn "$rv"
-                continue
-            else
-                # No repr method, print simply the obj
-                printstr="$obj"
-            fi
-        fi 
-        echo "$printstr"
+        repr $arg
+        echo "$rv"
     done
     rv="NULL"
     return 0
@@ -1334,6 +1417,16 @@ range(){
     export "${obj}IDelements"="$elementstr"
     debug "Parsed range list $obj: ${elements[@]}"
     rv=$obj
+    }
+
+
+shell(){
+    debug "shell: \"$1\""
+    out=$(eval "$1")
+    status=$?
+    debug "  command output: $out" 
+    debug "  status code $status"
+    newstr "$out"
     }
 
 

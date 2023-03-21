@@ -28,8 +28,10 @@ _add_current_token(){
         echo "BREAK"
     elif [[ "$token" == "null" ]]; then
         echo "NULL"
-    # Check for str
+    # Check for str, fstr
     elif test "x${token:0:3}" = "xSTR" ; then
+        echo "$token"
+    elif test "x${token:0:4}" = "xFSTR" ; then
         echo "$token"
     # Check for float
     elif test "x${token:0:3}" = "xFLT" ; then
@@ -70,6 +72,10 @@ _tokenize_line(){
         elif [[ "$c" == "\"" ]]; then
             strmode=1
             _add_current_token $token ; token="STR"
+        elif [[ "$c" == "f" ]] && [[ "$next_c" == "\"" ]]; then
+            strmode=1
+            _add_current_token $token ; token="FSTR"
+            ((i++)) # extra skip
         elif [[ "$c" == " " ]]; then
             # Hit whitespace: Add current token and reset
             _add_current_token $token ; token=""
@@ -93,7 +99,7 @@ _tokenize_line(){
             _add_current_token $token ; token=""
             if [[ "$next_c" == "=" ]]; then
                 echo "COMP!="
-                test $((i++)) # extra skip
+                ((i++)) # extra skip
             else
                 echo "ERROR sole ! is illegal syntax"
                 return 1

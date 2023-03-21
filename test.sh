@@ -404,6 +404,50 @@ print(a/3)
 EndOfMessage
 )
 
+tokenize_fstrings=$(cat << EndOfMessage
+a = 3
+b = f"this is a test: {a}"
+EndOfMessage
+)
+
+fstrings1=$(cat << EndOfMessage
+a = 3
+b = f"this is a test: {a}, bla"
+EndOfMessage
+)
+
+fstrings2=$(cat << EndOfMessage
+class A{ def __repr__(self){ return "I'm a class" } }
+print(f"Class A's repr returns: {A()}; also, some braces: {{ }} }} {{")
+EndOfMessage
+)
+
+string_conversion=$(cat << EndOfMessage
+class A{ def __repr__(self){ return "I'm a class" } }
+print(str(A()))
+print(str(3) + str(4))
+EndOfMessage
+)
+
+shell1=$(cat << EndOfMessage
+a = shell("ls *.py")
+print(a)
+EndOfMessage
+)
+
+shell2=$(cat << EndOfMessage
+a = shell("echo 'Hello' | sed 's#e#a#g'")
+print(a)
+EndOfMessage
+)
+
+shell3=$(cat << EndOfMessage
+a = shell("echo 'Hello World!' > myfile.txt")
+print(shell("cat myfile.txt"))
+EndOfMessage
+)
+
+
 # _______________________________________________________________
 # basic
 # func1 func2 func3
@@ -452,6 +496,15 @@ main(){
         code="${!arg}"
         if test -z "$code" ; then
             echo "No such script: $arg"
+            continue
+        fi
+
+        if streq "${arg:0:8}" "tokenize" ; then
+            echo "_____________________________________________________________"
+            echo "Tokenizing $arg; code:"
+            echo "$code"
+            echo "----"
+            echo "$code" | tokenize
             continue
         fi
 
