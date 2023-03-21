@@ -510,7 +510,7 @@ for_statement(){
     eat "IN"
     eat_sep
 
-    expr_with_comp ; local iterable="$rv"
+    expr_with_comp ; resolve_id "$rv" ; local iterable="$rv"
     eat_sep
     eat "PNC{"
     read_braces_block ; local for_body_code="SEP $rv SEP LOOPFOR SEP"

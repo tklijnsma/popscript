@@ -66,6 +66,28 @@ print(b[2])
 EndOfMessage
 )
 
+list2=$(cat << EndOfMessage
+my_list = [4, 1, -3.4, 10, 9, 8]
+max_val = -1000000
+for val in my_list {
+    if val > max_val { max_val = val }
+    }
+print(max_val)
+EndOfMessage
+)
+
+list3=$(cat << EndOfMessage
+a=[5,3]
+print(a[0])
+print(a[1])
+print(a.length())
+print([].length())
+# These should produce index errors:
+# print(a[2])
+# print([][0])
+EndOfMessage
+)
+
 class1=$(cat << EndOfMessage
 class Animal {
     a = 5
@@ -160,19 +182,6 @@ print(a)
 print(b)
 EndOfMessage
 )
-
-list2=$(cat << EndOfMessage
-a=[5,3]
-print(a[0])
-print(a[1])
-print(a.length())
-print([].length())
-# These should produce index errors:
-# print(a[2])
-# print([][0])
-EndOfMessage
-)
-
 
 class3=$(cat << EndOfMessage
 class A { def __repr__(self){return 3} }
