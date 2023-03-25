@@ -42,6 +42,15 @@ print(a)
 EndOfMessage
 )
 
+func4=$(cat << EndOfMessage
+def my_function(a){
+    a = a + 1
+    print(a)
+    }
+my_function(2)
+EndOfMessage
+)
+
 
 if1=$(cat << EndOfMessage
 a = 8
@@ -130,6 +139,57 @@ EndOfMessage
 )
 
 
+class3=$(cat << EndOfMessage
+class A { def __repr__(self){return 3} }
+class B { def __repr__(self){return "I am a class!"} }
+class C {}
+class D { def __repr__(self){return B()} }
+a = A()
+b = B()
+c = C()
+d = D()
+print(a)
+print(b)
+print(c)
+print(d)
+EndOfMessage
+)
+
+
+class4=$(cat << EndOfMessage
+class A {
+    def __init__(self, val){
+        self.val = val
+        }
+    def __add__(self, o){
+        return A(o.val + self.val)
+        }
+    }
+a = A(2)
+b = A(3)
+c = a+b
+print(c.val)
+EndOfMessage
+)
+
+
+class5=$(cat << EndOfMessage
+class Animal {
+    def __init__(self, sound){
+        self.sound = sound
+        }
+
+    def make_sound(self){
+        print(self.sound)
+        }
+    }
+
+cat = Animal("meow")
+cat.make_sound()
+EndOfMessage
+)
+
+
 if2=$(cat << EndOfMessage
 a = 1
 if a < 1 {
@@ -165,6 +225,12 @@ print(b)
 EndOfMessage
 )
 
+if5=$(cat << EndOfMessage
+a=4
+if a < 3 { print("a is less than 3") }
+else { print("a is equal to or greater than 3") }
+EndOfMessage
+)
 
 
 comp1=$(cat << EndOfMessage
@@ -184,22 +250,6 @@ print(b)
 EndOfMessage
 )
 
-class3=$(cat << EndOfMessage
-class A { def __repr__(self){return 3} }
-class B { def __repr__(self){return "I am a class!"} }
-class C {}
-class D { def __repr__(self){return B()} }
-a = A()
-b = B()
-c = C()
-d = D()
-print(a)
-print(b)
-print(c)
-print(d)
-EndOfMessage
-)
-
 
 err1=$(cat << EndOfMessage
 non_existing_fn(3)
@@ -215,21 +265,6 @@ print(c)
 EndOfMessage
 )
 
-class4=$(cat << EndOfMessage
-class A {
-    def __init__(self, val){
-        self.val = val
-        }
-    def __add__(self, o){
-        return A(o.val + self.val)
-        }
-    }
-a = A(2)
-b = A(3)
-c = a+b
-print(c.val)
-EndOfMessage
-)
 
 range1=$(cat << EndOfMessage
 a=range(5)
@@ -274,7 +309,7 @@ EndOfMessage
 
 while1=$(cat << EndOfMessage
 a = 0
-while a < 10 {
+while a < 4 {
     print(a)
     a = a + 1
     }
@@ -478,6 +513,25 @@ print(1 and 1 and 0)
 EndOfMessage
 )
 
+overloading_demo=$(cat << EndOfMessage
+class Cat{
+    def __init__(self, name, claw_length){
+        self.name = name
+        self.claw_length = claw_length
+        }
+    
+    def __lt__(self, other){
+        return self.claw_length < other.claw_length
+        }
+
+    def __repr__(self){ return "kitty " + self.name }
+    }
+
+lenny = Cat("Lenny", 10) ; bobby = Cat("Bobby", 20)
+if lenny < bobby { winner = bobby } else { winner = lenny}
+print(f"The winner is {winner}")
+EndOfMessage
+)
 
 
 # _______________________________________________________________
