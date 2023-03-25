@@ -19,11 +19,11 @@
 # x range
 # x __le__, __ge__, __lt__, __gt__
 # x conversions to strings, especially for ints/floats
+# x and/or
+# x modulo, //
 
 # NEXT LEVEL
-# - and/or
 # - more string methods (__eq__, __getitem__, split, join, replace)
-# - modulo, //
 # - a REPL interpreter
 # - an import system
 # - mechanism for escape chars in str, at least \~, \"
