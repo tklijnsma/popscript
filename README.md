@@ -1,6 +1,6 @@
 # pop: Programming on POSIX
 
-`pop` (programming on POSIX) is a general-purpose object-oriented scripting language designed to work with nothing but POSIX builtins. It has no dependencies or requirements other than a POSIX shell.
+`pop` (programming on POSIX) is a general-purpose object-oriented scripting language designed to work with nothing but POSIX builtins. It has a lexer and recursive descent parser with no dependencies or requirements other than a POSIX shell.
 
 
 ## Installation
@@ -14,7 +14,7 @@ source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/tklijnsma/pop
 Test your installation:
 
 ```bash
-$ pop -c 'print("Hello World!")'
+pop -c 'print("Hello World!")'
 Hello World!
 ```
 
@@ -160,3 +160,39 @@ If you're writing a one-off script, Python is great. Just do all your string man
 But if you're trying to write something reusable, perhaps a tool that is supposed to work on many platforms and regardless of what Python virtual environment you're in, writing your script in Python limits your portability. You can setup an isolated Python virtual environment every time you install your tool, and then update your `.bashrc` so you can call the script easily, but that's kind of a hassle and it has its own gotcha's.
 
 The idea of `pop` is to be a general-purpose scripting language that is extremely easy to install: Just source `pop.sh` and run your script. Its aim is to be much easier to write and read than shell scripts, like Python, but avoid the pain of setting up Python environments.
+
+Also, I read a blog post about recursive descent parsers and I wanted to try something like that. I learned a lot during the development of `pop`.
+
+
+## Status
+
+`pop` is slow. Extremely slow. The fizzbuzz-demo above takes about 40 seconds. While I anticipated performance would be an issue, in the current state I unfortunately have to conclude that the development of `pop` was probably an academic exercise.
+
+A non-complete list of other things about the language that I didn't get around to implement:
+
+- more string methods (\_\_eq__, \_\_getitem__, split, join, replace)
+- a REPL
+- an import system
+- mechanism for escape chars in str, at least \~, \"
+- global keyword
+- minimal test suite
+- more list methods (\_\_eq__, append, extend, slice)
+- booleans
+- single quote strings
+- basic benchmarking
+- += and the like
+- dictionaries
+- much better error messages
+- delete keyword
+- interpreter without any debug statements
+- test on different shells (currently only tested in Bash)
+- bitwise ops
+- multiline strings
+- garbage collection
+- error handling
+- array slicing
+- source code minimization
+- unpacking tuples for return, for loops, ...
+- keyword arguments
+- inheritance
+- type(...) function
