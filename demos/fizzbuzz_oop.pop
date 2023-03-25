@@ -1,3 +1,7 @@
+# This is a demo to show how OOP works in pop.
+# This is *not* a good way to implement the FizzBuzz algorithm.
+# For a proper implementation, please see https://github.com/EnterpriseQualityCoding/FizzBuzzEnterpriseEdition .
+
 class FizzBuzzPrinter {
     def __init__(self){
         self.i = 1

@@ -1,6 +1,6 @@
 # pop: Programming on POSIX
 
-`pop` (programming on POSIX) is a general purpose object-oriented scripting language designed to work with nothing but POSIX builtins. It has no dependencies or requirements other than a POSIX shell.
+`pop` (programming on POSIX) is a general-purpose object-oriented scripting language designed to work with nothing but POSIX builtins. It has no dependencies or requirements other than a POSIX shell.
 
 
 ## Installation
@@ -114,3 +114,49 @@ while a < 4 {
 >>> 3
 ```
 
+Because `pop` consists of nothing but shell commands under the hood, interop with the shell is easy:
+
+```python
+a = shell("echo 'Hello' | sed 's#e#a#g'")
+print(a)
+>>> Hallo
+```
+
+Try a demo:
+
+```bash
+$ wget https://raw.githubusercontent.com/tklijnsma/popscript/main/demos/fizzbuzz_oop.pop
+$ pop fizzbuzz_oop.pop
+1
+2
+fizz!
+4
+buzz!
+fizz!
+7
+8
+fizz!
+buzz!
+11
+fizz!
+13
+14
+fizzbuzz!
+16
+17
+fizz!
+19
+buzz!
+```
+
+## Why
+
+I started working on `pop` out of annoyance with shell scripting. Have you ever wrote a shell script that calls an API, pipes the output to `tr` to replace comma's with line breaks or what have you, then _that_ is piped `sed` to remove trailing whitespace, which is piped to a hard-to-read `awk` command, which is piped to ...?
+
+You inevitably run into gotcha's concerning whitespace. And the POSIX builtins, while powerful and performant, are just _awkward_ to use, unless you use these tools every day (which I don't).
+
+If you're writing a one-off script, Python is great. Just do all your string manipulation in there, and use `subprocess`. Or find a Python interface for the tool you're using.
+
+But if you're trying to write something reusable, perhaps a tool that is supposed to work on many platforms and regardless of what Python virtual environment you're in, writing your script in Python limits your portability. You can setup an isolated Python virtual environment every time you install your tool, and then update your `.bashrc` so you can call the script easily, but that's kind of a hassle and it has its own gotcha's.
+
+The idea of `pop` is to be a general-purpose scripting language that is extremely easy to install: Just source `pop.sh` and run your script. Its aim is to be much easier to write and read than shell scripts, like Python, but avoid the pain of setting up Python environments.
