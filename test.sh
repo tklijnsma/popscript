@@ -456,6 +456,17 @@ print(shell("cat myfile.txt"))
 EndOfMessage
 )
 
+modulo_and_floordiv=$(cat << EndOfMessage
+print(10 % 3)
+print(10 // 3)
+print(10 / 3)
+print(11.2 % 3)
+print(11.2 // 3.2)
+print(11.2 // 3.9)
+EndOfMessage
+)
+
+
 
 # _______________________________________________________________
 # basic
@@ -529,8 +540,10 @@ main(){
             echo "---- Ran $arg succesfully, t=${diff}s"
         else
             echo "Error on $arg"
-            debug_mode=1
-            run $code
+            if test $debug_mode -eq 0 ; then
+                debug_mode=1
+                run "$code"
+            fi
             return 1
         fi
     done

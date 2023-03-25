@@ -20,16 +20,16 @@
 # x __le__, __ge__, __lt__, __gt__
 # x conversions to strings, especially for ints/floats
 
-
 # NEXT LEVEL
+# - and/or
+# - more string methods (__eq__, __getitem__, split, join, replace)
+# - modulo, //
 # - a REPL interpreter
 # - an import system
 # - mechanism for escape chars in str, at least \~, \"
 # - global keyword for pickup later in the script
 # - minimal test suite
-# - more string methods (__eq__, __getitem__, split, join, replace)
 # - more list methods (__eq__, append, extend, slice)
-# - and/or
 # - booleans
 # - single quote strings
 # - basic benchmarking
@@ -41,7 +41,7 @@
 
 # ULTIMATELY
 # - test on different shells
-# - modulo, //, bitwise ops
+# - bitwise ops
 # - multiline strings
 # - garbage collection
 # - error handling
@@ -899,6 +899,18 @@ term(){
             factor
             right_rv="$rv"
             divide "$left_rv" "$right_rv"
+        elif maybe_eat "PNC//" ; then
+            debug "Found floordivision"
+            left_rv="$rv"
+            factor
+            right_rv="$rv"
+            floordivide "$left_rv" "$right_rv"
+        elif maybe_eat "PNC%" ; then
+            debug "Found modulo"
+            left_rv="$rv"
+            factor
+            right_rv="$rv"
+            modulo "$left_rv" "$right_rv"
         else
             break
         fi
@@ -1245,6 +1257,55 @@ divide(){
     debug "Divided $val1 / $val2 = $rv"
     }
 
+modulo(){
+    assert_two_args "$1" "$2"
+    resolve_id "$1" ; local val1="$rv"
+    resolve_id "$2" ; local val2="$rv"
+
+    if is_int $val1 && is_int $val2 ; then
+        int1="${val1:3}"
+        int2="${val2:3}"
+        rv="INT$(($int1%$int2))"
+    elif is_int_or_float $val1 && is_int_or_float $val2 ; then
+        val1="${val1:3}"
+        val2="${val2:3}"
+        rv=$( bc <<< "$val1%$val2" )
+        rv="FLT$rv"
+    else
+        if call "${val1}ID__mod__" "$val2" ; then
+            # method succeeded
+            :
+        else
+            error "cannot modulo $val1 and $val2"
+        fi
+    fi
+    debug "Modulo $val1 % $val2 = $rv"
+    }
+
+floordivide(){
+    assert_two_args "$1" "$2"
+    resolve_id "$1" ; local val1="$rv"
+    resolve_id "$2" ; local val2="$rv"
+
+    if is_int $val1 && is_int $val2 ; then
+        int1="${val1:3}"
+        int2="${val2:3}"
+        rv="INT$(($int1/$int2))"
+    elif is_int_or_float $val1 && is_int_or_float $val2 ; then
+        val1="${val1:3}"
+        val2="${val2:3}"
+        rv=$( bc <<< "$val1/$val2" )
+        rv="INT$rv"
+    else
+        if call "${val1}ID__floordiv__" "$val2" ; then
+            # method succeeded
+            :
+        else
+            error "cannot floordivide $val1 and $val2"
+        fi
+    fi
+    debug "Floordivide $val1 // $val2 = $rv"
+    }
 
 call(){
     local fnid=$1

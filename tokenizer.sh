@@ -123,13 +123,15 @@ _tokenize_line(){
                     ;;
                 *) token="FLT$token." ;;
             esac
-        # elif [[ "$c" == "-" ]]; then
-        #     _add_current_token $token ; token=""
-        #     case $next_c in
-        #         *[0-9]*) token="-" ;; # If next char is a digit, this minus sign is for a neg int
-        #         *) echo "PNC-" ;;
-        #     esac
-        elif [[ "-,][}{)(+.*/" == *"$c"* ]]; then
+        elif [[ "$c" == "/" ]]; then
+            _add_current_token $token ; token=""
+            if [[ "$next_c" == "/" ]]; then
+                echo "PNC//"
+                ((i++)) # extra skip
+            else
+                echo "PNC/"
+            fi
+        elif [[ "-,][}{)(+.*%" == *"$c"* ]]; then
             # Hit punctuation: Add current token, yield punctuation, and reset
             _add_current_token $token ; token=""
             echo "PNC$c"
