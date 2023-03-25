@@ -510,7 +510,7 @@ for_statement(){
     eat "IN"
     eat_sep
 
-    expr_with_comp ; resolve_id "$rv" ; local iterable="$rv"
+    expr ; resolve_id "$rv" ; local iterable="$rv"
     eat_sep
     eat "PNC{"
     read_braces_block ; local for_body_code="SEP $rv SEP LOOPFOR SEP"
@@ -585,7 +585,7 @@ while_statement(){
 
 
     local itoken_before_conditional=$itoken
-    expr_with_comp ; the_boolean="$rv"
+    expr ; the_boolean="$rv"
     local itoken_after_conditional=$itoken
 
     eat_sep
@@ -637,7 +637,7 @@ if_statement(){
     local code_to_be_executed the_boolean the_code_block
     local looking_for_code_to_execute=1
 
-    expr_with_comp ; the_boolean="$rv"
+    expr ; the_boolean="$rv"
     eat_sep
     eat "PNC{"
     read_braces_block ; local the_code_block="$rv"
@@ -652,7 +652,7 @@ if_statement(){
     do    
         eat_sep
         eat "ELIF"
-        expr_with_comp ; the_boolean="$rv"
+        expr ; the_boolean="$rv"
         eat_sep
         eat "PNC{"
         read_braces_block ; local the_code_block="$rv"
@@ -795,11 +795,11 @@ define_fn(){
 
 
 expr_or_assignment(){
-    expr_with_comp
+    expr
     if maybe_eat "PNC=" ; then
         debug "This is an assignment"
         leftid="$rv"
-        expr_with_comp
+        expr
         resolve_id "$rv"
         rightval="$rv"
 
@@ -820,14 +820,40 @@ expr_or_assignment(){
     }
 
 
+expr(){
+    expr_with_comp
+    while : ; do
+        if maybe_eat "AND" ; then
+            local left=$rv
+            expr_with_comp ; local right=$rv
+            if strneq $left "INT0" && strneq $right "INT0" ; then
+                rv="INT1"
+            else
+                rv="INT0"
+            fi
+        elif maybe_eat "OR" ; then
+            local left=$rv
+            expr_with_comp ; local right=$rv
+            if strneq $left "INT0" || strneq $right "INT0" ; then
+                rv="INT1"
+            else
+                rv="INT0"
+            fi
+        else
+            break
+        fi
+    done
+    }
+
+
 expr_with_comp(){
-    expr
+    expr_with_ops
     if streq "${current_token:0:4}" "COMP" ; then
         resolve_id $rv ; local left_val="$rv"
         local comp_token="$current_token"
         advance
         debug "Detected comparison $comp_token"
-        expr
+        expr_with_ops
         resolve_id $rv ; local right_val="$rv"
         
         local left_type="${left_val:0:3}"
@@ -865,7 +891,7 @@ expr_with_comp(){
     }
 
 
-expr(){
+expr_with_ops(){
     term
     if maybe_eat "PNC+" ; then
         debug "Found addition"
@@ -929,7 +955,7 @@ factor(){
         # Parenthesized expression
         debug "Found new parenthesized expression"
         eat_sep
-        expr_with_comp
+        expr
         eat_sep
         eat "PNC)"
     else
@@ -971,7 +997,7 @@ composed_id(){
             else
                 while : ; do
                     eat_sep
-                    expr_with_comp
+                    expr
                     args+=("$rv")
                     eat_sep
                     if maybe_eat "PNC)" ; then
@@ -1000,7 +1026,7 @@ composed_id(){
             # Get the underlying object for current ID
             resolve_id $rv ; local obj=$rv
             # Solve the expression that is the index
-            expr_with_comp ; local index="$rv"
+            expr ; local index="$rv"
             eat "PNC]"
             if call "${obj}ID__getitem__" "$index" ; then
                 # All is well - no op
@@ -1040,7 +1066,7 @@ parse_fstr(){
     local i=0
     local str="$1"
     local len="${#str}"
-    local c next_c nopen expr
+    local c next_c nopen subexpr
     out=""
 
     debug "Parsing f-string \"$str\""
@@ -1066,7 +1092,7 @@ parse_fstr(){
                 debug "  start of subexpression"
                 nopen=1
                 ((i++))
-                expr=""
+                subexpr=""
                 while : ; do
                     c="${str:$i:1}"
                     case $c in
@@ -1078,13 +1104,13 @@ parse_fstr(){
                         # Found closing }, break loop
                         break
                     fi
-                    expr="$expr$c"
+                    subexpr="$subexpr$c"
                     if test $i -ge $len ; then
                         error "reached EOF when parsing fstr"
                     fi
                 done
-                debug "  found expr $expr"
-                parse "$( tokenize <<< $expr )"
+                debug "  found subexpr $subexpr"
+                parse "$( tokenize <<< $subexpr )"
                 repr "$rv"
                 debug "  output of subparse: $rv"
                 out="$out$rv"
@@ -1121,7 +1147,7 @@ list(){
     else
         while : ; do
             eat_sep
-            expr_with_comp ; elements+=("$rv")
+            expr ; elements+=("$rv")
             if maybe_eat "PNC," ; then
                 continue
             elif maybe_eat "PNC]" ; then

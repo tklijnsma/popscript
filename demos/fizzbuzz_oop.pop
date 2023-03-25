@@ -1,0 +1,39 @@
+class FizzBuzzPrinter {
+    def __init__(self){
+        self.i = 1
+        }
+
+    def next(self){
+        fizzbuzz = FizzBuzzInstance(self.i)
+        self.i = self.i + 1  # += is a todo-item
+        return fizzbuzz
+        }
+
+    def run(self, n){
+        for i in range(n){
+            print(self.next())
+            }
+        }
+    }
+
+class FizzBuzzInstance{
+    def __init__(self, i){
+        self.i = i
+        }
+
+    def __repr__(self){
+        if self.i % 3 == 0 and self.i % 5 == 0 {
+            return "fizzbuzz!"
+            }
+        elif self.i % 3 == 0 {
+            return "fizz!"
+            }
+        elif self.i % 5 == 0 {
+            return "buzz!"
+            }
+        return f"{self.i}"
+        }
+    }
+
+fizzbuzzer = FizzBuzzPrinter()
+fizzbuzzer.run(20)

@@ -28,6 +28,12 @@ _add_current_token(){
         echo "BREAK"
     elif [[ "$token" == "null" ]]; then
         echo "NULL"
+    elif [[ "$token" == "and" ]]; then
+        echo "AND"
+    elif [[ "$token" == "or" ]]; then
+        echo "OR"
+    elif [[ "$token" == "not" ]]; then
+        echo "NOT"
     # Check for str, fstr
     elif test "x${token:0:3}" = "xSTR" ; then
         echo "$token"
@@ -80,8 +86,9 @@ _tokenize_line(){
             # Hit whitespace: Add current token and reset
             _add_current_token $token ; token=""
         elif [[ "$c" == "#" ]]; then
-            # Hit comment: Add current token and exit
+            # Hit comment: Add current token, a SEP, and exit
             _add_current_token $token
+            echo "SEP"
             return
         elif [[ "$c" == ";" ]]; then
             # Treat ; as separators

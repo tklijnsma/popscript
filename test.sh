@@ -63,6 +63,7 @@ a = [0 , 1+3, [7]]
 print(a)
 b = a
 print(b[2])
+print(b[2][0])
 EndOfMessage
 )
 
@@ -463,6 +464,17 @@ print(10 / 3)
 print(11.2 % 3)
 print(11.2 // 3.2)
 print(11.2 // 3.9)
+EndOfMessage
+)
+
+and1=$(cat << EndOfMessage
+print(2 and 2)
+print(2 and 0)
+print(2 or 0)
+print(0 or 0)
+print(0 or 0 or 1)
+print(1 and 1 and 1)
+print(1 and 1 and 0)
 EndOfMessage
 )
 
