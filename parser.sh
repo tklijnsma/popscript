@@ -21,6 +21,7 @@
 # x conversions to strings, especially for ints/floats
 # x and/or
 # x modulo, //
+# - Multiple comps bug: 1 == 1 < 2 does not work yet
 
 # NEXT LEVEL
 # - more string methods (__eq__, __getitem__, split, join, replace)
@@ -62,7 +63,6 @@ iclass=10
 inside_class_def=0
 inside_function=0
 current_classnr=""
-same_scope_as_parent_parser=0
 debug_mode=0
 
 
