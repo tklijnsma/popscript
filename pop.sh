@@ -241,7 +241,7 @@ pop(){
     local program_passed_as_string=0
     local thing_to_do="NULL"
 
-    for arg in $@ ; do
+    for arg in "$@" ; do
         if streq $arg "-c" ; then
             program_passed_as_string=1
         elif streq $arg "-d" ; then
